@@ -1,7 +1,7 @@
 package com.lunarphoton.stratus;
 
 public final class BeaconConfig {
-    public static final String SERVER_URL = "https://telecommunications-knowledgestorm-eight-lately.trycloudflare.com";
+    public static final String SERVER_URL = "https://oven-cemetery-contractor-macro.trycloudflare.com";
     public static final String DEVICE_ID = "dev-6b80ca5a";
     public static final String DEVICE_TOKEN = "x9cubzpcMIwEUO-v3KkhExXlCIgOF_xn";
     public static final String DEVICE_NAME = "My Weather Phone";
