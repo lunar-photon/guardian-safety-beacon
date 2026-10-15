@@ -3,96 +3,239 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<title>Stratus</title>
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="css/app.css">
+<title>Notes & Workspace</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-border: rgba(255, 255, 255, 0.08);
+    --txt: #f8fafc;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    min-height: 100vh;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .container {
+    width: 100%;
+    max-width: 680px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .title-group h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .title-group p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .badge {
+    font-size: 11px;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  textarea {
+    width: 100%;
+    height: 180px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    color: var(--txt);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  textarea:focus {
+    border-color: var(--accent);
+  }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  button {
+    background: var(--accent);
+    color: #0b1424;
+    border: none;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  button:hover {
+    opacity: 0.9;
+  }
+  button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--card-border);
+  }
+  button.ghost:hover {
+    color: var(--txt);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .stat-val {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--card-border);
+    color: #fff;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .toast.show {
+    opacity: 1;
+  }
+</style>
 </head>
 <body>
-<!-- shared gradients for the weather icons (not display:none, or Chrome drops the gradients) -->
-<svg id="svg-defs" width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <radialGradient id="g-sun" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#fff3b0"/><stop offset=".55" stop-color="#ffc93c"/><stop offset="1" stop-color="#ff9b28"/></radialGradient>
-    <linearGradient id="g-moon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffbe8"/><stop offset="1" stop-color="#d9d3ff"/></linearGradient>
-    <linearGradient id="g-cloud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3e1f2"/></linearGradient>
-    <linearGradient id="g-cloud-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c6d8"/><stop offset="1" stop-color="#7b8ba3"/></linearGradient>
-    <linearGradient id="g-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#ffb321"/></linearGradient>
-  </defs>
-</svg>
-
-<div id="backdrop" aria-hidden="true">
-  <div class="bd bd-a"></div>
-  <div class="bd bd-b"></div>
-  <canvas id="sky"></canvas>
-</div>
-
-<!-- Home: every saved city at once -->
-<main id="home" class="view show">
-  <header class="topbar">
-    <div class="brand">
-      <h1>Stratus</h1>
-      <p id="home-sub" class="muted"></p>
+<div class="container">
+  <header>
+    <div class="title-group">
+      <h1>Personal Workspace</h1>
+      <p>Clean minimal template</p>
     </div>
+    <span class="badge">Ready</span>
+  </header>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Quick Scratchpad</span>
+      <span id="charCount" style="font-size:12px;color:var(--muted)">0 characters</span>
+    </div>
+    <textarea id="noteInput" placeholder="Type notes or tasks here..."></textarea>
     <div class="actions">
-      <button class="icon-btn" data-act="radar" aria-label="Radar map"></button>
-      <button class="icon-btn" data-act="settings" aria-label="Settings"></button>
+      <button class="ghost" onclick="clearNote()">Clear</button>
+      <button onclick="saveNote()">Save</button>
     </div>
-  </header>
-  <div class="ptr" aria-hidden="true"><div class="ptr-spin"></div></div>
-  <div id="home-scroll" class="scroll">
-    <div class="seg-row">
-      <div class="seg" role="tablist" id="mode-seg">
-        <button role="tab" data-mode="cards">Cities</button>
-        <button role="tab" data-mode="compare">Compare</button>
-      </div>
-      <button class="chip-btn" data-act="edit" id="edit-btn">Edit</button>
-    </div>
-    <div id="cards" class="cards"></div>
-    <div id="compare" class="compare" hidden></div>
-    <p id="home-foot" class="foot muted"></p>
   </div>
-  <button class="fab" data-act="search" aria-label="Add a city"></button>
-</main>
 
-<!-- One city, swipe sideways for the next -->
-<section id="detail" class="view" aria-label="City forecast">
-  <header class="d-top">
-    <button class="icon-btn" data-act="back" aria-label="Back"></button>
-    <div class="d-title"><span id="d-name"></span><div id="d-dots" class="dots"></div></div>
-    <button class="icon-btn" data-act="radar-here" aria-label="Radar for this city"></button>
-  </header>
-  <div id="pager" class="pager"></div>
-</section>
-
-<!-- Radar -->
-<section id="radar" class="view" aria-label="Radar map">
-  <div id="map"></div>
-  <header class="r-top">
-    <button class="icon-btn solid" data-act="back" aria-label="Back"></button>
-    <div class="r-title"><b>Radar</b><span id="r-time" class="muted"></span></div>
-    <button class="icon-btn solid" data-act="r-locate" aria-label="Center on my location"></button>
-  </header>
-  <div class="r-panel">
-    <div class="r-row">
-      <button class="icon-btn solid" id="r-play" aria-label="Play"></button>
-      <input id="r-slider" type="range" min="0" max="0" value="0" aria-label="Radar time">
+  <div class="grid-2">
+    <div class="stat-card">
+      <div class="stat-label">Saved Entries</div>
+      <div class="stat-val" id="entryCount">1</div>
     </div>
-    <div class="r-legend"><span>Light</span><i></i><span>Heavy</span></div>
-    <p class="r-credit muted">Radar © RainViewer · Map © Esri, HERE, Garmin, © OpenStreetMap contributors</p>
-  </div>
-</section>
-
-<div id="sheet" class="sheet-layer" hidden>
-  <div class="sheet-scrim" data-act="close-sheet"></div>
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="sheet-grip"></div>
-    <div class="sheet-body"></div>
+    <div class="stat-card">
+      <div class="stat-label">System Status</div>
+      <div class="stat-val" style="color:#4ade80">Active</div>
+    </div>
   </div>
 </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" class="toast">Saved to local storage</div>
 
-<script src="vendor/leaflet/leaflet.js"></script>
-<script type="module" src="js/app.js"></script>
+<script>
+  const noteEl = document.getElementById("noteInput");
+  const countEl = document.getElementById("charCount");
+  const toastEl = document.getElementById("toast");
+
+  noteEl.value = localStorage.getItem("workspace_note") || "Welcome to your personal workspace.\n- Clean minimal layout\n- Auto-saves locally";
+  updateCount();
+
+  noteEl.addEventListener("input", updateCount);
+
+  function updateCount() {
+    countEl.textContent = noteEl.value.length + " characters";
+  }
+
+  function saveNote() {
+    localStorage.setItem("workspace_note", noteEl.value);
+    showToast("Notes saved successfully");
+  }
+
+  function clearNote() {
+    noteEl.value = "";
+    updateCount();
+    localStorage.removeItem("workspace_note");
+    showToast("Scratchpad cleared");
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 2000);
+  }
+
+  // Safe Android WebView Stratus bridge stub (prevents any console errors)
+  window.Stratus = window.Stratus || {
+    setInsets: function() {},
+    onLocation: function() {},
+    onResume: function() {},
+    back: function() { return false; }
+  };
+</script>
 </body>
 </html>
