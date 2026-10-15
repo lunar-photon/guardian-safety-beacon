@@ -2,645 +2,652 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apex Cloud Infrastructure — Edge Node Monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<title>Location Insights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
   :root {
-    --bg-base: #090d16;
-    --card-bg: #0f172a;
-    --card-border: rgba(255, 255, 255, 0.08);
-    --txt-main: #f8fafc;
-    --txt-muted: #94a3b8;
-    --accent: #38bdf8;
-    --accent-glow: rgba(56, 189, 248, 0.2);
-    --online-green: #22c55e;
-    --offline-red: #ef4444;
+    --bg: #0b0f17;
+    --surface: #0f1420;
+    --surface-2: #151b28;
+    --surface-3: #1b2333;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.14);
+    --txt: #e8edf5;
+    --muted: #8b95a7;
+    --faint: #5c6679;
+    --accent: #5b8cff;
+    --accent-ink: #0a1120;
+    --accent-soft: rgba(91,140,255,0.14);
+    --ok: #34d399;
+    --warn: #f59e0b;
+    --off: #f87171;
+    --sw: 384px;               /* sidebar width on desktop */
+    --mono: "Inter", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --shadow: 0 16px 40px -16px rgba(0,0,0,0.65);
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
-    min-height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg-base);
-    color: var(--txt-main);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 32px 20px;
+    height: 100%; width: 100%; overflow: hidden;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--txt);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  /* ---------------- Map ---------------- */
+  #map { position: absolute; inset: 0 0 0 var(--sw); z-index: 1; background: #0b1120; }
+  .leaflet-container { background: #0b1120; font-family: inherit; }
+  .leaflet-tile { filter: saturate(0.78) brightness(0.86) contrast(1.02); }
+  .leaflet-control-zoom a {
+    background: var(--surface-2) !important; color: var(--txt) !important;
+    border-color: var(--border) !important;
+  }
+  .leaflet-control-zoom a:hover { background: var(--surface-3) !important; }
+
+  .beacon-wrap { background: transparent; border: none; }
+  .beacon { position: relative; width: 22px; height: 22px; display: grid; place-items: center; }
+  .beacon-core {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); border: 2.5px solid #fff;
+    box-shadow: 0 0 0 1px rgba(91,140,255,0.5), 0 2px 6px rgba(0,0,0,0.5); z-index: 2;
+  }
+  .beacon-ring {
+    position: absolute; inset: -13px; border-radius: 50%;
+    background: rgba(91,140,255,0.22); border: 1px solid rgba(91,140,255,0.5);
+    animation: pulse 2.2s cubic-bezier(0.2,0.6,0.35,1) infinite; z-index: 1;
+  }
+  @keyframes pulse { 0%{transform:scale(0.4);opacity:0.9} 70%{transform:scale(1.35);opacity:0.12} 100%{transform:scale(1.7);opacity:0} }
+  .home-pin {
+    width: 14px; height: 14px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   }
 
-  .container {
-    width: 100%;
-    max-width: 680px;
+  /* ---------------- Sidebar shell ---------------- */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: var(--sw); z-index: 1000;
+    display: flex; flex-direction: column;
+    background: var(--surface); border-right: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .pad { padding: 18px 20px; }
+
+  /* identity row */
+  .idrow { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+    background: var(--accent-soft); border: 1px solid rgba(91,140,255,0.3); color: var(--accent);
+  }
+  .avatar svg { width: 21px; height: 21px; }
+  .idmeta { min-width: 0; flex: 1; }
+  .idmeta .name { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .idmeta .sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: var(--mono);
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.28); color: var(--ok);
+  }
+  .pill.off { background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.28); color: var(--off); }
+  .pdot { position: relative; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pdot::after { content:""; position:absolute; inset:0; border-radius:50%; background:currentColor; animation: ping 2s cubic-bezier(0,0,.2,1) infinite; }
+  @keyframes ping { 70%,100%{ transform: scale(2.6); opacity: 0; } }
+
+  .divider { height: 1px; background: var(--border); }
+
+  /* headline metric */
+  .headline {
+    margin-top: 16px; padding: 16px; border-radius: 14px;
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    border: 1px solid var(--border);
+  }
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .headline .v { font-size: 32px; font-weight: 750; margin-top: 6px; letter-spacing: -0.02em; }
+  .headline .v small { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .headline .cap { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+  /* metric grid */
+  .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .mcell { padding: 11px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .mcell .k { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+  .mcell .v { font-size: 14px; font-weight: 650; margin-top: 4px; }
+
+  /* controls */
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .btn {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    padding: 11px 6px; border-radius: 12px; cursor: pointer; font-family: inherit;
+    font-size: 11px; font-weight: 600; color: var(--txt);
+    background: var(--surface-2); border: 1px solid var(--border);
+    transition: background .15s, border-color .15s, transform .1s, color .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn svg { width: 17px; height: 17px; }
+  .btn:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  .btn:active { transform: scale(0.96); }
+  .btn.active { background: var(--accent-soft); border-color: rgba(91,140,255,0.45); color: #cdddff; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #4f80f5; }
+  .btn .lab { font-variant-numeric: tabular-nums; }
+
+  /* ---------------- Tabbed section ---------------- */
+  .section { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+  .tabs { display: flex; gap: 2px; padding: 12px 20px 0; }
+  .tab {
+    flex: 1; padding: 9px 4px; border: none; background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted);
+    border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: var(--txt); }
+  .tab.active { color: var(--txt); border-bottom-color: var(--accent); }
+
+  .body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 20px; }
+  .body::-webkit-scrollbar { width: 6px; }
+  .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 28px 6px; text-align: center; }
+
+  /* stats */
+  .scards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scard { padding: 14px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--border); }
+  .scard .k { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+  .scard .v { font-size: 22px; font-weight: 750; margin-top: 7px; letter-spacing: -0.02em; }
+  .scard .v small { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+  /* places */
+  .place { padding: 13px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--border); margin-bottom: 10px; transition: border-color .15s; }
+  .place:hover { border-color: var(--border-strong); }
+  .place-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .rank {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(91,140,255,0.28);
+  }
+  .rank.dim { color: var(--muted); background: var(--surface-3); border-color: var(--border); }
+  .place-info { flex: 1; min-width: 0; }
+  .place-name { font-size: 14px; font-weight: 600; }
+  .place-meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+  .place-time { flex-shrink: 0; text-align: right; }
+  .place-time .big { font-size: 15px; font-weight: 700; }
+  .place-time .lil { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+  .place-photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 12px; padding-bottom: 2px; }
+  .place-photos:empty { display: none; }
+  .thumb { flex-shrink: 0; width: 72px; height: 72px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border);
+           background: #0b1220; cursor: pointer; transition: transform .15s, border-color .15s; }
+  .thumb:hover { transform: scale(1.04); border-color: var(--accent); }
+
+  /* activity timeline */
+  .event { display: flex; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .event:last-child { border-bottom: none; }
+  .event-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--accent); }
+  .event.critical .event-dot { background: var(--off); }
+  .event.warn .event-dot { background: var(--warn); }
+  .event-t { color: var(--txt); font-weight: 500; }
+  .event-time { color: var(--muted); font-size: 11.5px; font-family: var(--mono); margin-top: 2px; }
+
+  /* ---------------- Mobile: top card + bottom sheet ---------------- */
+  .sheet-toggle {
+    display: none; position: absolute; z-index: 1000;
+    bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    align-items: center; gap: 8px; padding: 11px 20px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--txt);
+    background: var(--surface-2); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+  }
+  .sheet-toggle svg { width: 15px; height: 15px; color: var(--accent); }
+  .grab { display: none; }
+
+  @media (max-width: 860px) {
+    #map { inset: 0; }
+    .sidebar { display: contents; }
+
+    /* top card = identity + headline + metrics + controls */
+    #top {
+      position: absolute; z-index: 1000;
+      top: max(14px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
+      width: auto; max-width: 420px; margin: 0 auto;
+      background: rgba(15,20,32,0.82); backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+    }
+    /* bottom sheet = tabbed section */
+    .section {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1001;
+      max-height: 72vh; border-top: 1px solid var(--border);
+      border-top-left-radius: 20px; border-top-right-radius: 20px;
+      background: rgba(15,20,32,0.92); backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px); box-shadow: 0 -16px 40px -12px rgba(0,0,0,0.6);
+      transform: translateY(102%); transition: transform .36s cubic-bezier(0.16,1,0.3,1);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .section.open { transform: translateY(0); }
+    .grab { display: block; width: 38px; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.2); margin: 9px auto 2px; }
+    .sheet-toggle { display: inline-flex; }
+    .tabs { padding-top: 6px; }
+  }
+  @media (max-width: 400px) {
+    .headline .v { font-size: 27px; }
+    .controls { grid-template-columns: repeat(4, 1fr); }
   }
 
-  /* Header */
-  .top-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 20px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--card-border);
-  }
-  .brand-box {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .brand-icon {
-    font-size: 22px;
-    background: rgba(255, 255, 255, 0.06);
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--card-border);
-  }
-  .brand-title {
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-  .brand-sub {
-    font-size: 12px;
-    color: var(--txt-muted);
-    margin-top: 2px;
-  }
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 500;
-    background: rgba(34, 197, 94, 0.12);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-    color: #4ade80;
-  }
-  .status-badge.offline {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.25);
-    color: #f87171;
-  }
-  .status-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 6px currentColor;
-  }
-
-  /* Metrics Card */
-  .card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  }
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 16px;
-  }
-  .metric-box {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 10px 12px;
-  }
-  .metric-label {
-    font-size: 11px;
-    color: var(--txt-muted);
-    margin-bottom: 4px;
-  }
-  .metric-val {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--txt-main);
-  }
-
-  /* Actions Toolbar */
-  .actions-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .btn-action {
-    flex: 1;
-    min-width: 90px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    color: var(--txt-main);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  .btn-action:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: var(--accent);
-  }
-  .btn-primary {
-    background: #2563eb;
-    border-color: #3b82f6;
-    color: #ffffff;
-  }
-  .btn-primary:hover {
-    background: #1d4ed8;
-  }
-
-  /* Log & Asset Section */
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  .tab-buttons {
-    display: flex;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 3px;
-    border-radius: 10px;
-    border: 1px solid var(--card-border);
-  }
-  .tab-btn {
-    padding: 6px 14px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    color: var(--txt-muted);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .tab-btn.active {
-    background: rgba(255, 255, 255, 0.12);
-    color: #ffffff;
-    font-weight: 600;
-  }
-
-  .log-container {
-    max-height: 280px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-  .log-container::-webkit-scrollbar { width: 4px; }
-  .log-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
-
-  .event-item {
-    display: flex;
-    gap: 10px;
-    padding: 9px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--card-border);
-    border-radius: 8px;
-    margin-bottom: 6px;
-    font-size: 12px;
-  }
-  .event-item.critical { border-left: 3px solid var(--offline-red); }
-  .event-item.warn { border-left: 3px solid #f59e0b; }
-  .event-item.info { border-left: 3px solid var(--accent); }
-  .event-icon { font-size: 13px; }
-  .event-content { flex: 1; }
-  .event-title { color: var(--txt-main); font-weight: 500; }
-  .event-time { color: var(--txt-muted); font-size: 11px; margin-top: 1px; }
-
-  /* Photos Scroll */
-  .photos-scroll {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
-  .photo-thumb {
-    flex-shrink: 0;
-    width: 120px;
-    height: 160px;
-    border-radius: 10px;
-    border: 1px solid var(--card-border);
-    object-fit: cover;
-    background: #0b1220;
-    cursor: pointer;
-    transition: transform 0.2s;
-  }
-  .photo-thumb:hover {
-    transform: scale(1.03);
-    border-color: var(--accent);
-  }
-
-  /* Lightbox Modal */
-  #lightbox {
-    position: fixed;
-    inset: 0;
-    z-index: 3000;
-    background: rgba(0,0,0,0.85);
-    backdrop-filter: blur(10px);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
+  /* ---------------- Lightbox + toast ---------------- */
+  #lightbox { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+              display: none; align-items: center; justify-content: center; padding: 20px; }
   #lightbox.active { display: flex; }
-  .lightbox-content {
-    max-width: 90vw;
-    max-height: 90vh;
-    border-radius: 12px;
-    border: 1px solid var(--card-border);
-    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-    object-fit: contain;
-  }
-  .lightbox-close {
-    position: absolute;
-    top: 24px;
-    right: 28px;
-    font-size: 28px;
-    color: #ffffff;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-  }
+  #lightbox img { max-width: 92vw; max-height: 88vh; border-radius: 14px; border: 1px solid var(--border);
+                  box-shadow: 0 24px 70px rgba(0,0,0,0.85); object-fit: contain; }
+  .lb-x { position: absolute; top: max(18px, env(safe-area-inset-top)); right: 22px; font-size: 28px; color: #fff; background: transparent; border: none; cursor: pointer; }
 
-  /* Toast Notification */
   #toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 4000;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid var(--card-border);
-    border-radius: 20px;
-    padding: 8px 18px;
-    font-size: 12px;
-    color: #fff;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s;
+    position: fixed; z-index: 4000; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 14px); opacity: 0; pointer-events: none;
+    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; color: var(--txt);
+    background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+    transition: opacity .25s, transform .3s cubic-bezier(.2,.9,.3,1.2); white-space: nowrap;
   }
-  #toast.show { opacity: 1; }
+  @media (min-width: 861px) { #toast { left: calc(var(--sw) + 24px); bottom: 24px; transform: translateY(14px); } #toast.show { transform: translateY(0); } }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <!-- Top Navigation -->
-  <header class="top-header">
-    <div class="brand-box">
-      <div class="brand-icon">🌐</div>
-      <div>
-        <div class="brand-title">Edge Relay Gateway</div>
-        <div class="brand-sub">Cluster: us-east / node-6b80</div>
-      </div>
-    </div>
-    <div class="status-badge" id="statusBadge">
-      <span class="status-dot"></span>
-      <span id="statusText">Active</span>
-    </div>
-  </header>
+<div id="map"></div>
 
-  <!-- Metrics & Operations Card -->
-  <div class="card">
-    <div class="metrics-grid">
-      <div class="metric-box">
-        <div class="metric-label">Grid Vector</div>
-        <div class="metric-val" id="valCoords">—</div>
+<div class="sidebar">
+  <!-- Identity + headline + metrics + controls -->
+  <div id="top" class="pad">
+    <div class="idrow">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
       </div>
-      <div class="metric-box">
-        <div class="metric-label">Resolution</div>
-        <div class="metric-val" id="valAcc">—</div>
+      <div class="idmeta">
+        <div class="name" id="devName">My Phone</div>
+        <div class="sub" id="devId">—</div>
       </div>
-      <div class="metric-box">
-        <div class="metric-label">Load Factor</div>
-        <div class="metric-val" id="valBat">—</div>
-      </div>
-      <div class="metric-box">
-        <div class="metric-label">Heartbeat</div>
-        <div class="metric-val" id="valAgo">Just now</div>
-      </div>
+      <div class="pill" id="statusBadge"><span class="pdot"></span><span id="statusText">—</span></div>
     </div>
 
-    <div class="actions-row">
-      <button class="btn-action btn-primary" onclick="requestRefresh()" title="Request real-time telemetry update">
-        📌 Focus
+    <div class="headline">
+      <div class="eyebrow">Distance to most-visited place</div>
+      <div class="v num" id="homeDist">—</div>
+      <div class="cap" id="homeName">building your history…</div>
+    </div>
+
+    <div class="mgrid">
+      <div class="mcell"><div class="k">Coordinates</div><div class="v num" id="valCoords">—</div></div>
+      <div class="mcell"><div class="k">Accuracy</div><div class="v num" id="valAcc">—</div></div>
+      <div class="mcell"><div class="k">Battery</div><div class="v num" id="valBat">—</div></div>
+      <div class="mcell"><div class="k">Last seen</div><div class="v" id="valAgo">—</div></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn primary" onclick="centerOnMe()" title="Center map on my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Center</span>
       </button>
-      <button class="btn-action" onclick="sendSnapshot()" title="Execute optical node diagnostics">
-        📊 Scan
+      <button class="btn" id="trailBtn" onclick="toggleTrail()" title="Show my path">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18c4 0 4-12 8-12s4 12 8 12"/></svg><span>Path</span>
       </button>
-      <button class="btn-action" id="rateBtn" onclick="cycleTrackingRate()" title="Adjust telemetry sync frequency">
-        🔄 Sync: <span id="rateLabel">10s</span>
+      <button class="btn" onclick="requestPhoto()" title="Ask my phone for a photo of where it is">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg><span>Photo</span>
       </button>
-      <button class="btn-action" onclick="ringDevice()" title="Send keepalive acoustic ping">
-        📡 Probe
+      <button class="btn" id="rateBtn" onclick="cycleRate()" title="How often my phone reports in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lab" id="rateLabel">10s</span>
       </button>
     </div>
   </div>
 
-  <!-- Telemetry & Event Log Section -->
-  <div class="card">
-    <div class="section-header">
-      <div class="tab-buttons">
-        <button class="tab-btn active" id="tabEventsBtn" onclick="switchTab('events')">📋 System Log (<span id="eventCount">0</span>)</button>
-        <button class="tab-btn" id="tabPhotosBtn" onclick="switchTab('photos')">🖼️ Captures (<span id="photoCount">0</span>)</button>
-      </div>
+  <!-- Tabbed analytics -->
+  <div class="section" id="section">
+    <div class="grab"></div>
+    <div class="tabs">
+      <button class="tab active" id="tabStats" onclick="switchTab('stats')">Overview</button>
+      <button class="tab" id="tabPlaces" onclick="switchTab('places')">Places</button>
+      <button class="tab" id="tabLog" onclick="switchTab('log')">Activity</button>
     </div>
-
-    <div id="eventsView">
-      <div class="log-container" id="eventsList">
-        <p style="color:var(--txt-muted);font-size:12px;padding:16px 0;">Loading system telemetry...</p>
+    <div class="body">
+      <div id="viewStats">
+        <div class="scards" id="statCards"><div class="empty" style="grid-column:1/-1">Loading your statistics…</div></div>
       </div>
-    </div>
-
-    <div id="photosView" style="display: none;">
-      <div class="photos-scroll" id="photosContainer">
-        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames recorded yet. Click "📊 Scan" above.</p>
+      <div id="viewPlaces" style="display:none">
+        <div id="placesList"><div class="empty">No places yet — they build up as your phone reports locations.</div></div>
+      </div>
+      <div id="viewLog" style="display:none">
+        <div id="eventsList"><div class="empty">No activity yet.</div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Lightbox Modal -->
+<!-- Mobile sheet toggle -->
+<button class="sheet-toggle" id="sheetToggle" onclick="toggleSheet()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-6"/></svg>
+  Insights
+</button>
+
 <div id="lightbox" onclick="closeLightbox(event)">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-  <img id="lightboxImg" class="lightbox-content" src="" alt="Diagnostic capture">
+  <button class="lb-x" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <img id="lightboxImg" src="" alt="Photo of a visited place">
 </div>
 
 <div id="toast"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 const LS_TOKEN_KEY = "guardian_token";
 let TOKEN = "";
-let currentDevice = null;
+let map, beaconMarker = null, accuracyCircle = null, trailLine = null, homeMarker = null;
+let showTrail = false;
+let currentDevice = null, currentPos = null, latestFrames = [], lastStats = null;
+let hasCentered = false, sheetOpen = false, activeTab = "stats";
 let currentRateSec = 10;
 const rateOptions = [5, 10, 30, 60, 300];
+const isDesktop = () => window.matchMedia("(min-width: 861px)").matches;
 
-// Injected token from server or URL query param or localStorage
 const urlParams = new URLSearchParams(window.location.search);
 const injectedToken = "__DEFAULT_TOKEN__";
 TOKEN = urlParams.get("token") || (!injectedToken.startsWith("__") ? injectedToken : "") || localStorage.getItem(LS_TOKEN_KEY) || "";
+if (TOKEN) localStorage.setItem(LS_TOKEN_KEY, TOKEN);
 
-if (TOKEN) {
-  localStorage.setItem(LS_TOKEN_KEY, TOKEN);
-}
-
-// Telemetry refresh polling
-refreshState();
+initMap();
+refreshState().then(loadStats);
 connectWebSocket();
 setInterval(refreshState, 5000);
+setInterval(loadStats, 30000);
+window.addEventListener("resize", () => { if (map) setTimeout(() => map.invalidateSize(), 120); });
 
+/* ---------- Map ---------- */
+function initMap() {
+  map = L.map("map", { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+}
+const beaconIcon = L.divIcon({ className: "beacon-wrap", html: '<div class="beacon"><div class="beacon-ring"></div><div class="beacon-core"></div></div>', iconSize: [22,22], iconAnchor: [11,11] });
+const homeIcon = L.divIcon({ className: "beacon-wrap", html: '<div class="home-pin"></div>', iconSize: [14,14], iconAnchor: [7,13] });
+
+/* ---------- Live state ---------- */
 async function refreshState() {
   try {
-    const res = await fetch("/api/state", {
-      headers: { Authorization: "Bearer " + TOKEN }
-    });
+    const res = await fetch("/api/state", { headers: { Authorization: "Bearer " + TOKEN } });
     if (!res.ok) return;
     const data = await res.json();
-    if (!data.devices || data.devices.length === 0) return;
-
+    if (!data.devices || !data.devices.length) return;
     const dev = data.devices.find(d => d.id === "dev-6b80ca5a") || data.devices[0];
     currentDevice = dev;
+    latestFrames = data.frames || [];
     updateHUD(dev, data.now, data.offline_timeout);
+    updateMap(dev);
     updateEvents(data.events || []);
-    updatePhotos(data.frames || []);
-  } catch (err) {
-    console.error("Refresh error:", err);
-  }
+    updateHomeDistance();
+  } catch (err) { console.error("refresh error:", err); }
 }
 
 function updateHUD(d, now, timeout) {
+  document.getElementById("devName").textContent = "My Phone";
+  document.getElementById("devId").textContent = d.id || "—";
   const lp = d.last_ping || {};
   const fx = d.last_fix || lp;
-
-  const isOnline = (now - (d.last_seen || 0)) < (timeout || 90);
-  const badge = document.getElementById("statusBadge");
-  const statusText = document.getElementById("statusText");
-
-  if (isOnline) {
-    badge.className = "status-badge";
-    statusText.textContent = "Active";
-  } else {
-    badge.className = "status-badge offline";
-    statusText.textContent = "Idle";
-  }
-
-  // Grid Vector
+  const online = (now - (d.last_seen || 0)) < (timeout || 90);
+  document.getElementById("statusBadge").className = online ? "pill" : "pill off";
+  document.getElementById("statusText").textContent = online ? "Online" : "Offline";
   if (fx && fx.lat != null) {
-    document.getElementById("valCoords").textContent = `${fx.lat.toFixed(5)}, ${fx.lon.toFixed(5)}`;
-  } else {
-    document.getElementById("valCoords").textContent = "Syncing...";
-  }
-
-  // Resolution
-  if (fx && fx.accuracy != null) {
-    document.getElementById("valAcc").textContent = `±${Math.round(fx.accuracy)} m`;
-  } else {
-    document.getElementById("valAcc").textContent = "—";
-  }
-
-  // Load Factor
-  if (lp.battery != null) {
-    document.getElementById("valBat").textContent = `${Math.round(lp.battery)}%`;
-  } else {
-    document.getElementById("valBat").textContent = "—";
-  }
-
-  // Heartbeat freshness
+    currentPos = { lat: fx.lat, lon: fx.lon };
+    document.getElementById("valCoords").textContent = `${fx.lat.toFixed(4)}, ${fx.lon.toFixed(4)}`;
+  } else document.getElementById("valCoords").textContent = "Waiting…";
+  document.getElementById("valAcc").textContent = (fx && fx.accuracy != null) ? `±${Math.round(fx.accuracy)} m` : "—";
+  document.getElementById("valBat").textContent = (lp.battery != null) ? `${Math.round(lp.battery)}%` : "—";
   document.getElementById("valAgo").textContent = formatAgo(d.last_seen, now);
 }
 
-function requestRefresh() {
-  showToast("Synchronizing active node...");
-  refreshState();
+function updateMap(d) {
+  const pos = d.last_fix || d.last_ping;
+  if (!pos || pos.lat == null || pos.lon == null) return;
+  const latLng = [pos.lat, pos.lon], acc = pos.accuracy || 20;
+  if (!beaconMarker) {
+    beaconMarker = L.marker(latLng, { icon: beaconIcon }).addTo(map);
+    accuracyCircle = L.circle(latLng, { radius: acc, color: "#5b8cff", weight: 1.5, opacity: 0.55, fillColor: "#5b8cff", fillOpacity: 0.1 }).addTo(map);
+    if (!hasCentered) { map.setView(latLng, 16); hasCentered = true; }
+  } else { beaconMarker.setLatLng(latLng); accuracyCircle.setLatLng(latLng).setRadius(acc); }
+  if (showTrail && currentDevice) loadTrail(currentDevice.id);
+}
+function centerOnMe() {
+  if (currentPos) { map.flyTo([currentPos.lat, currentPos.lon], 16, { duration: 1.0 }); showToast("Centered on your location"); }
+  else showToast("Waiting for a location fix…");
 }
 
-async function sendSnapshot() {
+/* ---------- Trail ---------- */
+async function toggleTrail() {
+  showTrail = !showTrail;
+  document.getElementById("trailBtn").classList.toggle("active", showTrail);
+  if (!showTrail) { if (trailLine) { map.removeLayer(trailLine); trailLine = null; } }
+  else if (currentDevice) loadTrail(currentDevice.id);
+}
+async function fetchTrack(deviceId) {
+  const res = await fetch(`/api/track/${encodeURIComponent(deviceId)}`, { headers: { Authorization: "Bearer " + TOKEN } });
+  const data = await res.json();
+  return (data.track || []).filter(p => p.lat != null && p.lon != null);
+}
+async function loadTrail(deviceId) {
+  try {
+    const pts = (await fetchTrack(deviceId)).map(p => [p.lat, p.lon]);
+    if (trailLine) map.removeLayer(trailLine);
+    if (pts.length > 1) trailLine = L.polyline(pts, { color: "#5b8cff", weight: 3, opacity: 0.8 }).addTo(map);
+  } catch (err) {}
+}
+
+/* ---------- Commands ---------- */
+async function postCmd(cmd) {
+  await fetch("/api/command", { method: "POST",
+    headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify({ device_id: currentDevice.id, cmd }) });
+}
+async function requestPhoto() {
+  if (!currentDevice) return;
+  try { showToast("Requesting a photo…"); await postCmd("snap"); showToast("Photo requested"); refreshState(); }
+  catch (err) { showToast("Couldn't reach your phone"); }
+}
+async function ringPhone() {
+  if (!currentDevice) return;
+  try { await postCmd("ring"); showToast("Ringing your phone"); }
+  catch (err) { showToast("Couldn't reach your phone"); }
+}
+async function cycleRate() {
+  if (!currentDevice) return;
+  currentRateSec = rateOptions[(rateOptions.indexOf(currentRateSec) + 1) % rateOptions.length];
+  const label = currentRateSec >= 60 ? `${currentRateSec/60}m` : `${currentRateSec}s`;
+  document.getElementById("rateLabel").textContent = label;
+  try {
+    await fetch(`/api/device/${encodeURIComponent(currentDevice.id)}/interval`, { method: "POST",
+      headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ sec: currentRateSec }) });
+    showToast(`Reporting every ${label}`);
+  } catch (err) { showToast("Couldn't change the interval"); }
+}
+
+/* ---------- Statistics ---------- */
+async function loadStats() {
   if (!currentDevice) return;
   try {
-    showToast("Executing optical node scan...");
-    await fetch("/api/command", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + TOKEN,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ device_id: currentDevice.id, cmd: "snap" })
-    });
-    showToast("Scan command dispatched");
-    refreshState();
+    const track = await fetchTrack(currentDevice.id);
+    lastStats = computeStats(track);
+    attachPhotos(lastStats, latestFrames, track);
+    renderStats(lastStats);
+    renderPlaces(lastStats);
+    updateHomeDistance();
   } catch (err) {
-    showToast("Command transmission error");
+    document.getElementById("statCards").innerHTML = '<div class="empty" style="grid-column:1/-1">Couldn\'t load your history.</div>';
   }
 }
-
-async function cycleTrackingRate() {
-  if (!currentDevice) return;
-  const currentIndex = rateOptions.indexOf(currentRateSec);
-  const nextIndex = (currentIndex + 1) % rateOptions.length;
-  currentRateSec = rateOptions[nextIndex];
-  const rateLabelStr = currentRateSec >= 60 ? `${currentRateSec / 60}m` : `${currentRateSec}s`;
-  document.getElementById("rateLabel").textContent = rateLabelStr;
-
-  try {
-    await fetch(`/api/device/${encodeURIComponent(currentDevice.id)}/interval`, {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + TOKEN,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ sec: currentRateSec })
-    });
-    showToast(`Sync interval updated to ${rateLabelStr}`);
-    refreshState();
-  } catch (err) {
-    showToast("Sync frequency update failed");
+function computeStats(track) {
+  const pts = track.filter(p => p.lat != null && p.lon != null);
+  let dist = 0;
+  for (let i = 1; i < pts.length; i++) dist += haversine(pts[i-1], pts[i]);
+  const ts = pts.filter(p => p.ts != null);
+  const span = ts.length > 1 ? (ts[ts.length-1].ts - ts[0].ts) : null;
+  const accs = pts.filter(p => p.accuracy != null).map(p => p.accuracy);
+  const avgAcc = accs.length ? accs.reduce((a,b)=>a+b,0)/accs.length : null;
+  const RADIUS = 90;
+  const raw = []; let cur = null;
+  const ordered = ts.length ? ts : pts;
+  for (const p of ordered) {
+    if (cur && haversine(cur.c, p) <= RADIUS) {
+      cur.n++; cur.c.lat += (p.lat-cur.c.lat)/cur.n; cur.c.lon += (p.lon-cur.c.lon)/cur.n;
+      if (p.ts != null) cur.end = p.ts;
+    } else { if (cur) raw.push(cur); cur = { c: {lat:p.lat, lon:p.lon}, n:1, start: p.ts ?? null, end: p.ts ?? null }; }
+  }
+  if (cur) raw.push(cur);
+  const places = [];
+  for (const r of raw) {
+    const dwell = (r.start != null && r.end != null) ? Math.max(0, r.end - r.start) : 0;
+    const hit = places.find(pl => haversine(pl.c, r.c) <= 140);
+    if (hit) { hit.dwell += dwell; hit.visits++; hit.points += r.n; }
+    else places.push({ c: {lat:r.c.lat, lon:r.c.lon}, dwell, visits: 1, points: r.n, photos: [] });
+  }
+  places.sort((a,b) => (b.dwell-a.dwell) || (b.visits-a.visits) || (b.points-a.points));
+  return { dist, span, count: pts.length, avgAcc, places, hasTime: ts.length > 1, top: places[0] || null };
+}
+function attachPhotos(stats, frames, track) {
+  const ts = track.filter(p => p.ts != null);
+  for (const f of frames) {
+    let pos = (f.lat != null && f.lon != null) ? { lat: f.lat, lon: f.lon } : null;
+    if (!pos && f.ts != null && ts.length) {
+      let best = null, bestDt = Infinity;
+      for (const p of ts) { const dt = Math.abs(p.ts - f.ts); if (dt < bestDt) { bestDt = dt; best = p; } }
+      if (best && bestDt <= 180) pos = { lat: best.lat, lon: best.lon };
+    }
+    if (!pos) continue;
+    let near = null, nd = Infinity;
+    for (const pl of stats.places) { const d = haversine(pl.c, pos); if (d < nd) { nd = d; near = pl; } }
+    if (near && nd <= 160) near.photos.push(frameUrl(f));
   }
 }
-
-async function ringDevice() {
-  if (!currentDevice) return;
-  try {
-    await fetch("/api/command", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + TOKEN,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ device_id: currentDevice.id, cmd: "ring" })
-    });
-    showToast("Keepalive acoustic probe emitted");
-  } catch (err) {
-    showToast("Probe failed");
-  }
+function renderStats(s) {
+  const el = document.getElementById("statCards");
+  if (!s.count) { el.innerHTML = '<div class="empty" style="grid-column:1/-1">No location history recorded yet.</div>'; return; }
+  const d = fmtDist(s.dist);
+  const timeTxt = s.span != null ? fmtDur(s.span) : "—";
+  const accTxt = s.avgAcc != null ? `${Math.round(s.avgAcc)}<small> m</small>` : "—";
+  el.innerHTML = `
+    <div class="scard"><div class="k">Distance travelled</div><div class="v num">${d.n}<small> ${d.u}</small></div></div>
+    <div class="scard"><div class="k">Time tracked</div><div class="v num">${timeTxt}</div></div>
+    <div class="scard"><div class="k">Places visited</div><div class="v num">${s.places.length}</div></div>
+    <div class="scard"><div class="k">Avg. accuracy</div><div class="v num">${accTxt}</div></div>`;
+}
+function renderPlaces(s) {
+  const el = document.getElementById("placesList");
+  if (!s.places.length) { el.innerHTML = '<div class="empty">No places yet — they build up as your phone reports locations.</div>'; return; }
+  el.innerHTML = s.places.slice(0, 20).map((pl, i) => {
+    const photos = pl.photos.map(u => `<img class="thumb" src="${u}" loading="lazy" alt="Photo here" onclick="openLightbox('${u}')">`).join("");
+    const timeBlock = s.hasTime
+      ? `<div class="place-time"><div class="big num">${fmtDur(pl.dwell)}</div><div class="lil">${pl.visits} visit${pl.visits>1?"s":""}</div></div>`
+      : `<div class="place-time"><div class="big num">${pl.visits}</div><div class="lil">visit${pl.visits>1?"s":""}</div></div>`;
+    return `<div class="place"><div class="place-head" onclick="flyToPlace(${i})">
+      <div class="rank ${i===0?"":"dim"}">${i+1}</div>
+      <div class="place-info"><div class="place-name">${i===0 ? "Most-visited place" : "Place "+(i+1)}</div>
+      <div class="place-meta num">${pl.c.lat.toFixed(4)}, ${pl.c.lon.toFixed(4)}</div></div>
+      ${timeBlock}</div><div class="place-photos">${photos}</div></div>`;
+  }).join("");
+}
+function flyToPlace(i) {
+  const pl = lastStats && lastStats.places[i];
+  if (!pl) return;
+  map.flyTo([pl.c.lat, pl.c.lon], 16, { duration: 1.0 });
+  if (!isDesktop() && sheetOpen) toggleSheet();
+}
+function updateHomeDistance() {
+  const top = lastStats && lastStats.top;
+  const dEl = document.getElementById("homeDist"), nEl = document.getElementById("homeName");
+  if (!top) { dEl.textContent = "—"; nEl.textContent = "building your history…"; return; }
+  if (homeMarker) map.removeLayer(homeMarker);
+  homeMarker = L.marker([top.c.lat, top.c.lon], { icon: homeIcon }).addTo(map);
+  if (!currentPos) { dEl.textContent = "—"; nEl.textContent = "waiting for your location…"; return; }
+  const m = haversine(currentPos, top.c), d = fmtDist(m);
+  dEl.innerHTML = `${d.n}<small> ${d.u}</small>`;
+  nEl.textContent = m < 120 ? "you're there right now" : "from your most-visited place";
 }
 
+/* ---------- Activity ---------- */
 function updateEvents(events) {
   const el = document.getElementById("eventsList");
-  document.getElementById("eventCount").textContent = events.length;
-  if (!events || events.length === 0) {
-    el.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:16px 0;">No system logs recorded yet.</p>';
-    return;
-  }
-
-  const iconMap = {
-    snapshot: "📊",
-    frame: "📊",
-    command: "⚡",
-    sos: "⚠️",
-    offline: "📡",
-    geofence: "🌐"
-  };
-
-  el.innerHTML = events.slice(0, 30).map(ev => {
-    const icon = iconMap[ev.type] || "•";
-    const sevClass = ev.severity || "info";
-    const timeStr = new Date(ev.ts * 1000).toLocaleTimeString();
-    let msg = escapeHtml(ev.message);
-    msg = msg.replace(/phone/gi, "node")
-             .replace(/my weather phone/gi, "Edge Relay")
-             .replace(/snapshot/gi, "Scan buffer")
-             .replace(/operator sent: snap/gi, "Optical scan requested")
-             .replace(/operator sent: ring/gi, "Probe signal emitted");
-    return `
-      <div class="event-item ${sevClass}">
-        <div class="event-icon">${icon}</div>
-        <div class="event-content">
-          <div class="event-title">${msg}</div>
-          <div class="event-time">${timeStr}</div>
-        </div>
-      </div>
-    `;
+  if (!events.length) { el.innerHTML = '<div class="empty">No activity yet.</div>'; return; }
+  el.innerHTML = events.slice(0, 40).map(ev => {
+    const sev = ev.severity || "info";
+    const t = new Date(ev.ts * 1000).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+    return `<div class="event ${sev}"><span class="event-dot"></span><div><div class="event-t">${escapeHtml(ev.message)}</div><div class="event-time">${t}</div></div></div>`;
   }).join("");
 }
 
-function updatePhotos(frames) {
-  const container = document.getElementById("photosContainer");
-  const count = frames.length;
-  document.getElementById("photoCount").textContent = count;
-
-  if (!frames || frames.length === 0) {
-    container.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames stored. Click "📊 Scan" above.</p>';
-    return;
-  }
-
-  container.innerHTML = frames.map(f => {
-    const url = `/frames/${encodeURIComponent(f.path)}?token=${encodeURIComponent(TOKEN)}`;
-    return `
-      <img class="photo-thumb" src="${url}" loading="lazy" alt="Node frame" onclick="openLightbox('${url}')">
-    `;
-  }).join("");
+/* ---------- Sheet / tabs ---------- */
+function toggleSheet() {
+  sheetOpen = !sheetOpen;
+  document.getElementById("section").classList.toggle("open", sheetOpen);
+  if (sheetOpen) loadStats();
 }
-
 function switchTab(tab) {
-  document.getElementById("tabEventsBtn").classList.toggle("active", tab === "events");
-  document.getElementById("tabPhotosBtn").classList.toggle("active", tab === "photos");
-  document.getElementById("eventsView").style.display = tab === "events" ? "block" : "none";
-  document.getElementById("photosView").style.display = tab === "photos" ? "block" : "none";
+  activeTab = tab;
+  document.getElementById("tabStats").classList.toggle("active", tab === "stats");
+  document.getElementById("tabPlaces").classList.toggle("active", tab === "places");
+  document.getElementById("tabLog").classList.toggle("active", tab === "log");
+  document.getElementById("viewStats").style.display  = tab === "stats"  ? "block" : "none";
+  document.getElementById("viewPlaces").style.display = tab === "places" ? "block" : "none";
+  document.getElementById("viewLog").style.display    = tab === "log"    ? "block" : "none";
+  if ((tab === "stats" || tab === "places") && !lastStats) loadStats();
 }
 
-function openLightbox(url) {
-  document.getElementById("lightboxImg").src = url;
-  document.getElementById("lightbox").classList.add("active");
-}
+/* ---------- Lightbox ---------- */
+function frameUrl(f) { return `/frames/${encodeURIComponent(f.path)}?token=${encodeURIComponent(TOKEN)}`; }
+function openLightbox(url) { document.getElementById("lightboxImg").src = url; document.getElementById("lightbox").classList.add("active"); }
+function closeLightbox(e) { if (e && e.target && e.target.id === "lightboxImg") return; document.getElementById("lightbox").classList.remove("active"); }
 
-function closeLightbox(e) {
-  if (e && e.target && e.target.id === "lightboxImg") return;
-  document.getElementById("lightbox").classList.remove("active");
+/* ---------- Helpers ---------- */
+function haversine(a, b) {
+  const R = 6371000, toR = Math.PI/180;
+  const dLat = (b.lat-a.lat)*toR, dLon = (b.lon-a.lon)*toR, la1 = a.lat*toR, la2 = b.lat*toR;
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
-
+function fmtDist(m) { return m < 1000 ? { n: Math.round(m), u: "m" } : { n: (m/1000).toFixed(m < 10000 ? 2 : 1), u: "km" }; }
+function fmtDur(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec/3600), mi = Math.floor((sec%3600)/60);
+  if (h >= 24) { const dd = Math.floor(h/24); return `${dd}d ${h%24}h`; }
+  if (h) return `${h}h ${mi}m`;
+  if (mi) return `${mi}m`;
+  return `${sec}s`;
+}
 function formatAgo(ts, now) {
   if (!ts) return "never";
   const s = Math.max(0, Math.floor(now - ts));
-  if (s < 5) return "Just now";
+  if (s < 5) return "just now";
   if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
 }
-
-function escapeHtml(str) {
-  return String(str || "").replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
+function escapeHtml(str) { return String(str || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+let toastTimer;
 function showToast(msg) {
   const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 3000);
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
-// WebSocket Live Updates
+/* ---------- WebSocket ---------- */
 function connectWebSocket() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
-
   ws.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.kind === "ping" || msg.kind === "refresh" || msg.kind === "frame" || msg.kind === "event") {
-        refreshState();
-      }
+    try { const m = JSON.parse(e.data);
+      if (["ping","refresh","frame","event"].includes(m.kind)) { refreshState(); loadStats(); }
     } catch (err) {}
   };
-
-  ws.onclose = () => {
-    setTimeout(connectWebSocket, 4000);
-  };
+  ws.onclose = () => setTimeout(connectWebSocket, 4000);
 }
 </script>
 </body>
