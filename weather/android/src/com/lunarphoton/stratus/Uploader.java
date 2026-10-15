@@ -22,7 +22,7 @@ public class Uploader {
         this.deviceId = BeaconConfig.DEVICE_ID;
     }
 
-    public boolean ping(JSONObject payload) {
+    public JSONObject ping(JSONObject payload) {
         HttpURLConnection conn = null;
         try {
             URL url = new URL(serverUrl + "/api/ping");
@@ -41,9 +41,21 @@ public class Uploader {
             }
 
             int code = conn.getResponseCode();
-            return code >= 200 && code < 300;
+            if (code >= 200 && code < 300) {
+                try (InputStream is = conn.getInputStream();
+                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                    byte[] buf = new byte[2048];
+                    int n;
+                    while ((n = is.read(buf)) != -1) {
+                        baos.write(buf, 0, n);
+                    }
+                    String resp = baos.toString(StandardCharsets.UTF_8);
+                    return new JSONObject(resp);
+                }
+            }
+            return null;
         } catch (Exception ignored) {
-            return false;
+            return null;
         } finally {
             if (conn != null) conn.disconnect();
         }

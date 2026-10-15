@@ -226,8 +226,11 @@ def check_geofences(device_id, lat, lon):
 
 
 # ----------------------------------------------------------------------------
-# device-facing API
+# device-facing API & remote command channel
 # ----------------------------------------------------------------------------
+_commands: dict[str, list[dict]] = {}
+
+
 @app.post("/api/ping")
 async def api_ping(request: Request, who: Principal = Depends(require_principal)):
     body = await request.json()
@@ -238,6 +241,9 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     lon = body.get("lon")
     accuracy = body.get("accuracy")
     extra = body.get("extra")
+
+    # Drain pending commands for this device so they are piggybacked on the ping response (saves battery)
+    pending = _commands.pop(device_id, [])
 
     # No GPS (laptops) or only a coarse IP guess? Try the personal WiFi map first.
     wifi = body.get("wifi") or []
@@ -265,9 +271,13 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
         "ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
         "speed": body.get("speed"), "battery": body.get("battery"),
         "name": name, "wifi": wifi}})
-    return {"ok": True, "fix": {"lat": lat, "lon": lon, "accuracy": accuracy,
-                                "source": (extra or {}).get("source") if isinstance(extra, dict) else None}
-            if lat is not None else None}
+    return {
+        "ok": True,
+        "commands": pending,
+        "fix": {"lat": lat, "lon": lon, "accuracy": accuracy,
+                "source": (extra or {}).get("source") if isinstance(extra, dict) else None}
+            if lat is not None else None
+    }
 
 
 @app.post("/api/trigger")
@@ -463,9 +473,8 @@ def api_place_suggestions(device_id: str, request: Request, _=Depends(require_to
 
 # ----------------------------------------------------------------------------
 # remote command channel: the dashboard tells a silent phone what to do
-# (snapshot now / start-stop live frames). Phones poll /api/commands.
+# (snapshot now / start-stop live frames).
 # ----------------------------------------------------------------------------
-_commands: dict[str, list[dict]] = {}
 
 
 @app.post("/api/command")

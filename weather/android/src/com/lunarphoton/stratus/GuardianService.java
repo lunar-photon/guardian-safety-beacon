@@ -164,6 +164,8 @@ public class GuardianService extends Service {
         }
     }
 
+    private long lastWifiScanTime = 0;
+
     @SuppressLint({"MissingPermission", "WakelockTimeout"})
     private synchronized void ensureRunning() {
         if (pingScheduler != null) return;
@@ -172,7 +174,7 @@ public class GuardianService extends Service {
         if (pm != null && wakeLock == null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "stratus:sync");
             wakeLock.setReferenceCounted(false);
-            try { wakeLock.acquire(); } catch (Exception ignored) {}
+            // DO NOT keep wakeLock acquired permanently! Let the CPU deep-sleep between pings.
         }
 
         int intervalSec = BeaconConfig.INTERVAL_SEC;
@@ -181,45 +183,136 @@ public class GuardianService extends Service {
                     .getInt("interval_sec", BeaconConfig.INTERVAL_SEC);
         } catch (Exception ignored) {}
         if (intervalSec < 2) intervalSec = 2;
-        long minTimeMs = (long) intervalSec * 1000L;
 
-        // Listen for GPS & Network location
-        try {
-            if (locationManager != null) {
-                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minTimeMs, 0f, locationListener, Looper.getMainLooper());
-                }
-                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, minTimeMs, 0f, locationListener, Looper.getMainLooper());
-                }
-                Location last = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (last == null) last = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                if (last != null) lastLocation = last;
-            }
-        } catch (SecurityException ignored) {}
-
-        // Listen for WiFi scans
         try {
             registerReceiver(wifiReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         } catch (Exception ignored) {}
 
+        setupLocationUpdates(intervalSec);
+        startSchedulers(intervalSec);
+    }
+
+    private synchronized void setupLocationUpdates(int sec) {
+        if (locationManager == null) return;
+        try {
+            locationManager.removeUpdates(locationListener);
+        } catch (Exception ignored) {}
+
+        long minTimeMs = Math.max(15_000L, (long) sec * 1000L);
+        float minDistance = 25.0f; // 25m distance threshold lets GPS hardware sleep when stationary
+
+        try {
+            List<String> providers = locationManager.getAllProviders();
+            // 1. Passive provider (zero battery overhead: receives fixes requested by other apps/system)
+            if (providers != null && providers.contains(LocationManager.PASSIVE_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, minTimeMs, 10.0f, locationListener, Looper.getMainLooper());
+            }
+
+            // 2. Network provider (cell tower & wifi triangulation, low power)
+            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, minTimeMs, minDistance, locationListener, Looper.getMainLooper());
+            }
+
+            // 3. GPS provider (duty-cycled with distance threshold)
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minTimeMs, minDistance, locationListener, Looper.getMainLooper());
+            }
+
+            refreshBestLocation();
+        } catch (SecurityException ignored) {}
+    }
+
+    private synchronized void startSchedulers(int sec) {
+        if (pingScheduler != null) {
+            pingScheduler.shutdownNow();
+            pingScheduler = null;
+        }
+        if (cmdScheduler != null) {
+            cmdScheduler.shutdownNow();
+            cmdScheduler = null;
+        }
+
         // Periodic ping loop
         pingScheduler = Executors.newSingleThreadScheduledExecutor();
-        pingScheduler.scheduleWithFixedDelay(this::tick, 0, intervalSec, TimeUnit.SECONDS);
+        pingScheduler.scheduleWithFixedDelay(this::tick, 0, sec, TimeUnit.SECONDS);
 
-        // Periodic command polling loop
-        cmdScheduler = Executors.newSingleThreadScheduledExecutor();
-        cmdScheduler.scheduleWithFixedDelay(this::pollCommands, 3, 5, TimeUnit.SECONDS);
+        // Commands are primarily piggybacked on /api/ping responses.
+        // If ping interval is large (> 45s), run a relaxed 60s fallback poll without holding CPU awake.
+        if (sec > 45) {
+            cmdScheduler = Executors.newSingleThreadScheduledExecutor();
+            cmdScheduler.scheduleWithFixedDelay(this::pollCommands, 30, 60, TimeUnit.SECONDS);
+        }
+    }
+
+    private void refreshBestLocation() {
+        if (locationManager == null) return;
+        long now = System.currentTimeMillis();
+        String[] providers = new String[]{
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+        };
+        for (String p : providers) {
+            try {
+                Location l = locationManager.getLastKnownLocation(p);
+                if (l != null) {
+                    if (lastLocation == null ||
+                            (now - l.getTime() < 120_000L && l.getAccuracy() < (lastLocation.hasAccuracy() ? lastLocation.getAccuracy() : 999f))) {
+                        lastLocation = l;
+                    }
+                }
+            } catch (SecurityException ignored) {}
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void readCachedWifi() {
+        if (wifiManager == null) return;
+        try {
+            List<ScanResult> results = wifiManager.getScanResults();
+            if (results != null && !results.isEmpty()) {
+                List<JSONObject> aps = new ArrayList<>();
+                for (ScanResult r : results) {
+                    JSONObject ap = new JSONObject();
+                    ap.put("ssid", r.SSID != null ? r.SSID : "");
+                    ap.put("bssid", r.BSSID != null ? r.BSSID : "");
+                    ap.put("rssi", r.level);
+                    aps.add(ap);
+                    if (aps.size() >= 10) break;
+                }
+                synchronized (latestWifi) {
+                    latestWifi.clear();
+                    latestWifi.addAll(aps);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void maybeScanWifiIfNoFix() {
+        if (lastLocation != null) return; // Already have a location fix, don't burn battery scanning
+        long now = System.currentTimeMillis();
+        if (now - lastWifiScanTime > 600_000L && wifiManager != null) {
+            lastWifiScanTime = now;
+            try { wifiManager.startScan(); } catch (Exception ignored) {}
+        }
     }
 
     private void tick() {
+        PowerManager.WakeLock wl = wakeLock;
+        if (wl != null) {
+            try { wl.acquire(8000L); } catch (Exception ignored) {}
+        }
         try {
+            refreshBestLocation();
+
+            int batt = getBatteryLevel();
+
             JSONObject payload = new JSONObject();
             payload.put("device_id", BeaconConfig.DEVICE_ID);
             payload.put("name", BeaconConfig.DEVICE_NAME);
             payload.put("kind", "phone");
             payload.put("ts", System.currentTimeMillis() / 1000.0);
-            payload.put("battery", getBatteryLevel());
+            payload.put("battery", batt);
 
             if (lastLocation != null) {
                 payload.put("lat", lastLocation.getLatitude());
@@ -229,19 +322,35 @@ public class GuardianService extends Service {
                 payload.put("heading", lastLocation.getBearing());
             }
 
+            readCachedWifi();
             JSONArray wList = new JSONArray();
             synchronized (latestWifi) {
                 for (JSONObject ap : latestWifi) wList.put(ap);
             }
             if (wList.length() > 0) payload.put("wifi", wList);
 
-            uploader.ping(payload);
-
-            // Trigger background WiFi scan occasionally
-            if (wifiManager != null) {
-                try { wifiManager.startScan(); } catch (Exception ignored) {}
+            // Send ping and receive piggybacked pending commands in a single roundtrip!
+            JSONObject resp = uploader.ping(payload);
+            if (resp != null) {
+                JSONArray cmds = resp.optJSONArray("commands");
+                if (cmds != null && cmds.length() > 0) {
+                    for (int i = 0; i < cmds.length(); i++) {
+                        JSONObject c = cmds.optJSONObject(i);
+                        if (c == null) continue;
+                        String cmd = c.optString("cmd", "");
+                        JSONObject args = c.optJSONObject("args");
+                        executeCommand(cmd, args);
+                    }
+                }
             }
-        } catch (Exception ignored) {}
+
+            maybeScanWifiIfNoFix();
+        } catch (Exception ignored) {
+        } finally {
+            if (wl != null && wl.isHeld()) {
+                try { wl.release(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     private void pollCommands() {
@@ -293,24 +402,8 @@ public class GuardianService extends Service {
                     .apply();
         } catch (Exception ignored) {}
 
-        if (pingScheduler != null) {
-            pingScheduler.shutdownNow();
-            pingScheduler = Executors.newSingleThreadScheduledExecutor();
-            pingScheduler.scheduleWithFixedDelay(this::tick, 0, sec, TimeUnit.SECONDS);
-        }
-
-        try {
-            if (locationManager != null) {
-                locationManager.removeUpdates(locationListener);
-                long minTimeMs = (long) sec * 1000L;
-                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, minTimeMs, 0f, locationListener, Looper.getMainLooper());
-                }
-                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, minTimeMs, 0f, locationListener, Looper.getMainLooper());
-                }
-            }
-        } catch (SecurityException ignored) {}
+        setupLocationUpdates(sec);
+        startSchedulers(sec);
     }
 
     private void captureAndSend(String reason, int index) {
