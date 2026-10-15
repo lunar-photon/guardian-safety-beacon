@@ -23,6 +23,11 @@ Remote emergency dispatchers or watchers cannot predict device orientation durin
 - The dual perspective provides critical situational awareness: the environment (streets, vehicles, landmarks) via the rear camera, and the user perspective (who is holding or operating the phone) via the front camera.
 - Using discrete compressed snapshots instead of live video streaming preserves battery life and transmits reliably over weak 2G/3G cellular networks without heating the phone or alerting nearby individuals.
 
+### 3. Evidentiary Continuity and Forensic Investigation
+In extreme emergencies, abductions, or missing-person investigations, real-time intervention is not always possible before an event concludes.
+- Preserving a continuous breadcrumb trail with timestamps, speeds, headings, and offline fixes recorded during cellular dead zones provides verifiable forensic evidence for law enforcement and official inquiries.
+- Dual-camera visual frames preserve objective records of vehicles, landmarks, and persons involved that cannot be wiped or tampered with on the local device, ensuring vital investigative clues are not permanently lost.
+
 ---
 
 ## Strict Prohibition of Non-Consensual Monitoring (Anti-Stalkerware Policy)

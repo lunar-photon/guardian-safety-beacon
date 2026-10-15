@@ -59,6 +59,27 @@ Streaming continuous live video consumes immense battery and frequently drops wh
 
 ---
 
+### Evidentiary Value and Post-Incident Investigation
+
+In safety incidents, disappearances, or crimes, real-time intervention is not always possible before a situation unfolds. In such critical circumstances, the recorded telemetry, offline logs, and visual frames become indispensable forensic evidence for family, first responders, and law enforcement:
+
+1. Unbroken Timeline Reconstruction
+Every location fix recorded by Guardian includes precise GPS coordinates, timestamp, speed, heading, and accuracy radius. This enables investigators to reconstruct the victim's exact trajectory, travel speeds, route anomalies, and unscheduled stops down to the second.
+
+2. Offline Continuity in Signal Dead Zones
+Standard cloud tracking applications drop completely when an abducted or distressed individual is transported through underground parking, basements, or rural dead zones lacking cellular connectivity.
+- Stratus continues silently recording fixes into its local SQLite database on the device.
+- As soon as the phone briefly regains connectivity or is recovered by authorities, all queued offline logs are streamed to the server.
+- This prevents the critical loss of location breadcrumbs precisely when an individual is in the highest danger.
+
+3. Evidentiary Photographic Verification
+Dual-camera snapshots record vehicle interiors, license plates, road signage, and the faces of individuals holding or inspecting the phone. These time-stamped visual records provide objective physical evidence during official missing-person and police inquiries.
+
+4. Safe Remote Persistence
+Even if an assailant destroys, powers off, or discards the phone, all data and photos transmitted up to that point remain safely preserved on the watcher's private server, protecting vital clues that cannot be wiped by tampering with the phone.
+
+---
+
 ## System Overview
 
 The setup consists of two primary components:
