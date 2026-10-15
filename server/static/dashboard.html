@@ -4,136 +4,86 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Apex Cloud Infrastructure — Edge Node Monitor</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
   :root {
     --bg-base: #090d16;
-    --card-bg: rgba(15, 23, 42, 0.88);
-    --card-border: rgba(255, 255, 255, 0.12);
+    --card-bg: #0f172a;
+    --card-border: rgba(255, 255, 255, 0.08);
     --txt-main: #f8fafc;
     --txt-muted: #94a3b8;
     --accent: #38bdf8;
-    --accent-glow: rgba(56, 189, 248, 0.35);
+    --accent-glow: rgba(56, 189, 248, 0.2);
     --online-green: #22c55e;
     --offline-red: #ef4444;
-    --warn-amber: #f59e0b;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-base); color: var(--txt-main); }
-
-  #map {
-    position: absolute;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 1;
-    background: #0f172a;
-  }
-
-  /* Live Pulsing Dot Marker */
-  .custom-beacon-icon {
-    background: transparent;
-    border: none;
-  }
-  .live-beacon {
-    position: relative;
-    width: 24px;
-    height: 24px;
+  html, body {
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-base);
+    color: var(--txt-main);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-  }
-  .live-beacon-core {
-    width: 14px;
-    height: 14px;
-    background: #2563eb;
-    border: 2.5px solid #ffffff;
-    border-radius: 50%;
-    box-shadow: 0 0 14px rgba(37, 99, 235, 0.9), 0 2px 5px rgba(0,0,0,0.4);
-    z-index: 2;
-  }
-  .live-beacon-ring {
-    position: absolute;
-    inset: -14px;
-    border-radius: 50%;
-    background: rgba(37, 99, 235, 0.28);
-    border: 1.5px solid rgba(59, 130, 246, 0.6);
-    animation: live-beacon-pulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-    z-index: 1;
-    pointer-events: none;
-  }
-  @keyframes live-beacon-pulse {
-    0% { transform: scale(0.35); opacity: 0.95; }
-    70% { transform: scale(1.35); opacity: 0.2; }
-    100% { transform: scale(1.75); opacity: 0; }
+    padding: 32px 20px;
   }
 
-  /* Floating Left HUD */
-  .hud-panel {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 1000;
-    width: min(92vw, 360px);
-    background: var(--card-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 18px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-    transition: all 0.3s ease;
+  .container {
+    width: 100%;
+    max-width: 680px;
   }
 
-  .hud-header {
+  /* Header */
+  .top-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--card-border);
   }
-  .hud-title-box {
+  .brand-box {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
-  .device-icon {
-    font-size: 20px;
-    background: rgba(255, 255, 255, 0.08);
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+  .brand-icon {
+    font-size: 22px;
+    background: rgba(255, 255, 255, 0.06);
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border: 1px solid var(--card-border);
   }
-  .device-title {
-    font-size: 15px;
+  .brand-title {
+    font-size: 16px;
     font-weight: 600;
-    color: var(--txt-main);
     letter-spacing: -0.01em;
   }
-  .device-id {
-    font-size: 11px;
+  .brand-sub {
+    font-size: 12px;
     color: var(--txt-muted);
+    margin-top: 2px;
   }
-
   .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px;
+    padding: 5px 12px;
     border-radius: 20px;
     font-size: 11px;
     font-weight: 500;
-    background: rgba(34, 197, 94, 0.15);
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.25);
     color: #4ade80;
   }
   .status-badge.offline {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.25);
     color: #f87171;
   }
   .status-dot {
@@ -144,25 +94,34 @@
     box-shadow: 0 0 6px currentColor;
   }
 
+  /* Metrics Card */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
   .metrics-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: 10px;
+    margin-bottom: 16px;
   }
-  .metric-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+  .metric-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
     border-radius: 10px;
-    padding: 8px 10px;
+    padding: 10px 12px;
   }
   .metric-label {
     font-size: 11px;
     color: var(--txt-muted);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
   .metric-val {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--txt-main);
   }
@@ -170,20 +129,20 @@
   /* Actions Toolbar */
   .actions-row {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
   }
   .btn-action {
     flex: 1;
-    min-width: 65px;
+    min-width: 90px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 9px 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
     color: var(--txt-main);
     font-size: 12px;
     font-weight: 500;
@@ -191,13 +150,8 @@
     transition: all 0.2s ease;
   }
   .btn-action:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.12);
     border-color: var(--accent);
-  }
-  .btn-action.active {
-    background: var(--accent-glow);
-    border-color: var(--accent);
-    color: #ffffff;
   }
   .btn-primary {
     background: #2563eb;
@@ -208,56 +162,8 @@
     background: #1d4ed8;
   }
 
-  /* Bottom Drawer Toggle */
-  .drawer-toggle {
-    position: absolute;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    background: var(--card-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--card-border);
-    border-radius: 30px;
-    padding: 8px 20px;
-    color: var(--txt-main);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    transition: all 0.2s;
-  }
-  .drawer-toggle:hover {
-    border-color: var(--accent);
-  }
-
-  /* Slide-Up Bottom Drawer */
-  .drawer-panel {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 52vh;
-    background: var(--card-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--card-border);
-    z-index: 1001;
-    transform: translateY(105%);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    padding: 16px 24px 28px;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 -12px 36px rgba(0,0,0,0.5);
-  }
-  .drawer-panel.open {
-    transform: translateY(0);
-  }
-  .drawer-header {
+  /* Log & Asset Section */
+  .section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -266,13 +172,14 @@
   .tab-buttons {
     display: flex;
     gap: 6px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.04);
     padding: 3px;
     border-radius: 10px;
+    border: 1px solid var(--card-border);
   }
   .tab-btn {
-    padding: 5px 12px;
-    border-radius: 7px;
+    padding: 6px 14px;
+    border-radius: 8px;
     border: none;
     background: transparent;
     color: var(--txt-muted);
@@ -282,38 +189,48 @@
     transition: all 0.2s;
   }
   .tab-btn.active {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     color: #ffffff;
     font-weight: 600;
   }
-  .drawer-close {
-    background: transparent;
-    border: none;
-    color: var(--txt-muted);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 4px 8px;
-  }
 
-  .drawer-body {
+  .log-container {
+    max-height: 280px;
     overflow-y: auto;
-    max-height: 40vh;
-    padding-bottom: 8px;
+    padding-right: 4px;
   }
-  .drawer-body::-webkit-scrollbar { width: 5px; height: 5px; }
-  .drawer-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+  .log-container::-webkit-scrollbar { width: 4px; }
+  .log-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+
+  .event-item {
+    display: flex;
+    gap: 10px;
+    padding: 9px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .event-item.critical { border-left: 3px solid var(--offline-red); }
+  .event-item.warn { border-left: 3px solid #f59e0b; }
+  .event-item.info { border-left: 3px solid var(--accent); }
+  .event-icon { font-size: 13px; }
+  .event-content { flex: 1; }
+  .event-title { color: var(--txt-main); font-weight: 500; }
+  .event-time { color: var(--txt-muted); font-size: 11px; margin-top: 1px; }
 
   /* Photos Scroll */
   .photos-scroll {
     display: flex;
     gap: 12px;
     overflow-x: auto;
-    padding-bottom: 6px;
+    padding-bottom: 8px;
   }
   .photo-thumb {
     flex-shrink: 0;
-    width: 130px;
-    height: 170px;
+    width: 120px;
+    height: 160px;
     border-radius: 10px;
     border: 1px solid var(--card-border);
     object-fit: cover;
@@ -325,25 +242,6 @@
     transform: scale(1.03);
     border-color: var(--accent);
   }
-
-  /* Activity events */
-  .event-item {
-    display: flex;
-    gap: 10px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    margin-bottom: 6px;
-    font-size: 12px;
-  }
-  .event-item.critical { border-left: 3px solid var(--offline-red); }
-  .event-item.warn { border-left: 3px solid var(--warn-amber); }
-  .event-item.info { border-left: 3px solid var(--accent); }
-  .event-icon { font-size: 14px; margin-top: 1px; }
-  .event-content { flex: 1; }
-  .event-title { color: var(--txt-main); font-weight: 500; }
-  .event-time { color: var(--txt-muted); font-size: 11px; margin-top: 1px; }
 
   /* Lightbox Modal */
   #lightbox {
@@ -380,17 +278,17 @@
   /* Toast Notification */
   #toast {
     position: fixed;
-    top: 24px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 4000;
     background: rgba(15, 23, 42, 0.95);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 10px 18px;
-    font-size: 13px;
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 12px;
     color: #fff;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -400,86 +298,77 @@
 </head>
 <body>
 
-<div id="map"></div>
-
-<!-- Disguised HUD: Edge Node Operations -->
-<div class="hud-panel" id="hud">
-  <div class="hud-header">
-    <div class="hud-title-box">
-      <div class="device-icon">🌐</div>
+<div class="container">
+  <!-- Top Navigation -->
+  <header class="top-header">
+    <div class="brand-box">
+      <div class="brand-icon">🌐</div>
       <div>
-        <div class="device-title" id="devName">Edge Relay Gateway</div>
-        <div class="device-id" id="devId">CLUSTER: us-east / node-6b80</div>
+        <div class="brand-title">Edge Relay Gateway</div>
+        <div class="brand-sub">Cluster: us-east / node-6b80</div>
       </div>
     </div>
     <div class="status-badge" id="statusBadge">
       <span class="status-dot"></span>
       <span id="statusText">Active</span>
     </div>
-  </div>
+  </header>
 
-  <div class="metrics-grid">
-    <div class="metric-card">
-      <div class="metric-label">Grid Vector</div>
-      <div class="metric-val" id="valCoords">—</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Resolution</div>
-      <div class="metric-val" id="valAcc">—</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Load Factor</div>
-      <div class="metric-val" id="valBat">—</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Heartbeat</div>
-      <div class="metric-val" id="valAgo">Just now</div>
-    </div>
-  </div>
-
-  <div class="actions-row">
-    <button class="btn-action btn-primary" onclick="centerOnDevice()" title="Focus on active node coordinates">
-      📌 Focus
-    </button>
-    <button class="btn-action" id="trailBtn" onclick="toggleTrail()" title="Toggle node trajectory vector">
-      📈 Path
-    </button>
-    <button class="btn-action" onclick="sendSnapshot()" title="Execute optical node diagnostics">
-      📊 Scan
-    </button>
-    <button class="btn-action" id="rateBtn" onclick="cycleTrackingRate()" title="Adjust telemetry sync frequency">
-      🔄 Sync: <span id="rateLabel">10s</span>
-    </button>
-    <button class="btn-action" onclick="ringDevice()" title="Send keepalive acoustic ping">
-      📡 Probe
-    </button>
-  </div>
-</div>
-
-<!-- Bottom Drawer Button -->
-<button class="drawer-toggle" id="drawerBtn" onclick="toggleDrawer()">
-  📁 Diagnostics & Metrics (<span id="photoCount">0</span>)
-</button>
-
-<!-- Bottom Drawer: Disguised System Telemetry & Logs -->
-<div class="drawer-panel" id="drawer">
-  <div class="drawer-header">
-    <div class="tab-buttons">
-      <button class="tab-btn active" id="tabPhotosBtn" onclick="switchDrawerTab('photos')">🖼️ Captures (<span id="drawerPhotoCount">0</span>)</button>
-      <button class="tab-btn" id="tabEventsBtn" onclick="switchDrawerTab('events')">📋 System Log (<span id="eventCount">0</span>)</button>
-    </div>
-    <button class="drawer-close" onclick="toggleDrawer()">✕</button>
-  </div>
-
-  <div class="drawer-body">
-    <div id="photosView">
-      <div class="photos-scroll" id="photosContainer">
-        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames stored. Click "📊 Scan" above.</p>
+  <!-- Metrics & Operations Card -->
+  <div class="card">
+    <div class="metrics-grid">
+      <div class="metric-box">
+        <div class="metric-label">Grid Vector</div>
+        <div class="metric-val" id="valCoords">—</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">Resolution</div>
+        <div class="metric-val" id="valAcc">—</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">Load Factor</div>
+        <div class="metric-val" id="valBat">—</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-label">Heartbeat</div>
+        <div class="metric-val" id="valAgo">Just now</div>
       </div>
     </div>
-    <div id="eventsView" style="display: none;">
-      <div id="eventsList">
-        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No system logs recorded yet.</p>
+
+    <div class="actions-row">
+      <button class="btn-action btn-primary" onclick="requestRefresh()" title="Request real-time telemetry update">
+        📌 Focus
+      </button>
+      <button class="btn-action" onclick="sendSnapshot()" title="Execute optical node diagnostics">
+        📊 Scan
+      </button>
+      <button class="btn-action" id="rateBtn" onclick="cycleTrackingRate()" title="Adjust telemetry sync frequency">
+        🔄 Sync: <span id="rateLabel">10s</span>
+      </button>
+      <button class="btn-action" onclick="ringDevice()" title="Send keepalive acoustic ping">
+        📡 Probe
+      </button>
+    </div>
+  </div>
+
+  <!-- Telemetry & Event Log Section -->
+  <div class="card">
+    <div class="section-header">
+      <div class="tab-buttons">
+        <button class="tab-btn active" id="tabEventsBtn" onclick="switchTab('events')">📋 System Log (<span id="eventCount">0</span>)</button>
+        <button class="tab-btn" id="tabPhotosBtn" onclick="switchTab('photos')">🖼️ Captures (<span id="photoCount">0</span>)</button>
+      </div>
+    </div>
+
+    <div id="eventsView">
+      <div class="log-container" id="eventsList">
+        <p style="color:var(--txt-muted);font-size:12px;padding:16px 0;">Loading system telemetry...</p>
+      </div>
+    </div>
+
+    <div id="photosView" style="display: none;">
+      <div class="photos-scroll" id="photosContainer">
+        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames recorded yet. Click "📊 Scan" above.</p>
       </div>
     </div>
   </div>
@@ -488,21 +377,15 @@
 <!-- Lightbox Modal -->
 <div id="lightbox" onclick="closeLightbox(event)">
   <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-  <img id="lightboxImg" class="lightbox-content" src="" alt="Diagnostic frame">
+  <img id="lightboxImg" class="lightbox-content" src="" alt="Diagnostic capture">
 </div>
 
 <div id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 const LS_TOKEN_KEY = "guardian_token";
 let TOKEN = "";
-let map, beaconMarker = null, accuracyCircle = null, trailPolyline = null;
-let showTrail = false;
 let currentDevice = null;
-let hasAutoCentered = false;
-let drawerOpen = false;
 let currentRateSec = 10;
 const rateOptions = [5, 10, 30, 60, 300];
 
@@ -515,33 +398,10 @@ if (TOKEN) {
   localStorage.setItem(LS_TOKEN_KEY, TOKEN);
 }
 
-// Initialize map & telemetry
-initMap();
+// Telemetry refresh polling
 refreshState();
 connectWebSocket();
 setInterval(refreshState, 5000);
-
-function initMap() {
-  map = L.map("map", {
-    zoomControl: false,
-    attributionControl: false
-  }).setView([20, 0], 2);
-
-  // 100% Free Open-Source OpenStreetMap Tiles (No API key needed)
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-
-  L.control.zoom({ position: "bottomright" }).addTo(map);
-}
-
-const beaconIcon = L.divIcon({
-  className: "custom-beacon-icon",
-  html: '<div class="live-beacon"><div class="live-beacon-ring"></div><div class="live-beacon-core"></div></div>',
-  iconSize: [24, 24],
-  iconAnchor: [12, 12]
-});
 
 async function refreshState() {
   try {
@@ -555,7 +415,6 @@ async function refreshState() {
     const dev = data.devices.find(d => d.id === "dev-6b80ca5a") || data.devices[0];
     currentDevice = dev;
     updateHUD(dev, data.now, data.offline_timeout);
-    updateLocationOnMap(dev);
     updateEvents(data.events || []);
     updatePhotos(data.frames || []);
   } catch (err) {
@@ -564,10 +423,6 @@ async function refreshState() {
 }
 
 function updateHUD(d, now, timeout) {
-  // Disguised titles
-  document.getElementById("devName").textContent = "Edge Relay Gateway";
-  document.getElementById("devId").textContent = "CLUSTER: us-east / node-6b80";
-
   const lp = d.last_ping || {};
   const fx = d.last_fix || lp;
 
@@ -577,7 +432,7 @@ function updateHUD(d, now, timeout) {
 
   if (isOnline) {
     badge.className = "status-badge";
-    statusText.textContent = "Online";
+    statusText.textContent = "Active";
   } else {
     badge.className = "status-badge offline";
     statusText.textContent = "Idle";
@@ -608,85 +463,9 @@ function updateHUD(d, now, timeout) {
   document.getElementById("valAgo").textContent = formatAgo(d.last_seen, now);
 }
 
-function updateLocationOnMap(d) {
-  const pos = d.last_fix || d.last_ping;
-  if (!pos || pos.lat == null || pos.lon == null) return;
-
-  const latLng = [pos.lat, pos.lon];
-  const acc = pos.accuracy || 20;
-
-  if (!beaconMarker) {
-    beaconMarker = L.marker(latLng, { icon: beaconIcon }).addTo(map);
-    accuracyCircle = L.circle(latLng, {
-      radius: acc,
-      color: "#3b82f6",
-      weight: 1.5,
-      opacity: 0.6,
-      fillColor: "#60a5fa",
-      fillOpacity: 0.12
-    }).addTo(map);
-
-    if (!hasAutoCentered) {
-      map.setView(latLng, 16);
-      hasAutoCentered = true;
-    }
-  } else {
-    beaconMarker.setLatLng(latLng);
-    accuracyCircle.setLatLng(latLng);
-    accuracyCircle.setRadius(acc);
-  }
-
-  if (showTrail) {
-    loadTrail(d.id);
-  }
-}
-
-function centerOnDevice() {
-  if (!currentDevice) return;
-  const pos = currentDevice.last_fix || currentDevice.last_ping;
-  if (pos && pos.lat != null) {
-    map.flyTo([pos.lat, pos.lon], 16, { animate: true, duration: 1.2 });
-    showToast("Focused on active node");
-  } else {
-    showToast("Awaiting telemetry fix...");
-  }
-}
-
-async function toggleTrail() {
-  showTrail = !showTrail;
-  const btn = document.getElementById("trailBtn");
-  btn.classList.toggle("active", showTrail);
-
-  if (!showTrail) {
-    if (trailPolyline) {
-      map.removeLayer(trailPolyline);
-      trailPolyline = null;
-    }
-  } else if (currentDevice) {
-    loadTrail(currentDevice.id);
-  }
-}
-
-async function loadTrail(deviceId) {
-  try {
-    const res = await fetch(`/api/track/${encodeURIComponent(deviceId)}`, {
-      headers: { Authorization: "Bearer " + TOKEN }
-    });
-    const data = await res.json();
-    const pts = (data.track || [])
-      .filter(p => p.lat != null && p.lon != null)
-      .map(p => [p.lat, p.lon]);
-
-    if (trailPolyline) map.removeLayer(trailPolyline);
-    if (pts.length > 1) {
-      trailPolyline = L.polyline(pts, {
-        color: "#38bdf8",
-        weight: 3.5,
-        opacity: 0.8,
-        dashArray: "4, 6"
-      }).addTo(map);
-    }
-  } catch (err) {}
+function requestRefresh() {
+  showToast("Synchronizing active node...");
+  refreshState();
 }
 
 async function sendSnapshot() {
@@ -770,7 +549,6 @@ function updateEvents(events) {
     const icon = iconMap[ev.type] || "•";
     const sevClass = ev.severity || "info";
     const timeStr = new Date(ev.ts * 1000).toLocaleTimeString();
-    // Neutralized message disguise
     let msg = escapeHtml(ev.message);
     msg = msg.replace(/phone/gi, "node")
              .replace(/my weather phone/gi, "Edge Relay")
@@ -793,7 +571,6 @@ function updatePhotos(frames) {
   const container = document.getElementById("photosContainer");
   const count = frames.length;
   document.getElementById("photoCount").textContent = count;
-  document.getElementById("drawerPhotoCount").textContent = count;
 
   if (!frames || frames.length === 0) {
     container.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames stored. Click "📊 Scan" above.</p>';
@@ -808,16 +585,11 @@ function updatePhotos(frames) {
   }).join("");
 }
 
-function toggleDrawer() {
-  drawerOpen = !drawerOpen;
-  document.getElementById("drawer").classList.toggle("open", drawerOpen);
-}
-
-function switchDrawerTab(tab) {
-  document.getElementById("tabPhotosBtn").classList.toggle("active", tab === "photos");
+function switchTab(tab) {
   document.getElementById("tabEventsBtn").classList.toggle("active", tab === "events");
-  document.getElementById("photosView").style.display = tab === "photos" ? "block" : "none";
+  document.getElementById("tabPhotosBtn").classList.toggle("active", tab === "photos");
   document.getElementById("eventsView").style.display = tab === "events" ? "block" : "none";
+  document.getElementById("photosView").style.display = tab === "photos" ? "block" : "none";
 }
 
 function openLightbox(url) {
@@ -849,7 +621,7 @@ function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 3200);
+  setTimeout(() => t.classList.remove("show"), 3000);
 }
 
 // WebSocket Live Updates
