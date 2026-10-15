@@ -69,8 +69,8 @@ def get_or_create_device():
     """)
     conn.commit()
 
-    # Look for existing active device in safety.db
-    row = cur.execute("SELECT id, token, name FROM devices WHERE revoked = 0 ORDER BY first_seen DESC LIMIT 1").fetchone()
+    # Look for existing active device in safety.db (pick most recently active phone)
+    row = cur.execute("SELECT id, token, name FROM devices WHERE revoked = 0 ORDER BY last_seen DESC LIMIT 1").fetchone()
     if row and row[0] and row[1]:
         dev_id, token, name = row[0], row[1], row[2] or "My Weather Phone"
     else:
