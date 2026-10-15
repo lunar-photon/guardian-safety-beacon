@@ -95,6 +95,32 @@ public class CameraCapture {
             final String cameraId = selectedId;
             final ImageReader reader = ImageReader.newInstance(1280, 720, ImageFormat.JPEG, 2);
             final AtomicBoolean finished = new AtomicBoolean(false);
+            final CameraDevice[] cameraDeviceHolder = new CameraDevice[1];
+            final CameraCaptureSession[] sessionHolder = new CameraCaptureSession[1];
+
+            // Comprehensive cleanup routine to release all camera hardware immediately
+            Runnable cleanup = () -> {
+                try {
+                    if (sessionHolder[0] != null) {
+                        try { sessionHolder[0].stopRepeating(); } catch (Exception ignored) {}
+                        try { sessionHolder[0].abortCaptures(); } catch (Exception ignored) {}
+                        sessionHolder[0].close();
+                        sessionHolder[0] = null;
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    if (cameraDeviceHolder[0] != null) {
+                        cameraDeviceHolder[0].close();
+                        cameraDeviceHolder[0] = null;
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    reader.close();
+                } catch (Exception ignored) {}
+                try {
+                    thread.quitSafely();
+                } catch (Exception ignored) {}
+            };
 
             reader.setOnImageAvailableListener(r -> {
                 if (finished.compareAndSet(false, true)) {
@@ -106,7 +132,10 @@ public class CameraCapture {
                             buffer.get(bytes);
                         }
                     } catch (Exception ignored) {}
-                    thread.quitSafely();
+
+                    // Immediately close and release camera device and session so it is no longer in use
+                    cleanup.run();
+
                     if (bytes != null && bytes.length > 0) {
                         if (callback != null) callback.onCaptured(bytes);
                     } else {
@@ -115,31 +144,40 @@ public class CameraCapture {
                 }
             }, bgHandler);
 
-            // Timeout safety
+            // Timeout safety - if capture doesn't complete within 5s, release everything immediately
             bgHandler.postDelayed(() -> {
                 if (finished.compareAndSet(false, true)) {
-                    thread.quitSafely();
+                    cleanup.run();
                     if (callback != null) callback.onError("Camera2 capture timed out");
                 }
-            }, 6000);
+            }, 5000);
 
             manager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override
                 public void onOpened(CameraDevice camera) {
+                    cameraDeviceHolder[0] = camera;
+                    if (finished.get()) {
+                        cleanup.run();
+                        return;
+                    }
                     try {
                         camera.createCaptureSession(Collections.singletonList(reader.getSurface()),
                                 new CameraCaptureSession.StateCallback() {
                                     @Override
                                     public void onConfigured(CameraCaptureSession session) {
+                                        sessionHolder[0] = session;
+                                        if (finished.get()) {
+                                            cleanup.run();
+                                            return;
+                                        }
                                         try {
                                             CaptureRequest.Builder builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                                             builder.addTarget(reader.getSurface());
                                             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                                             session.capture(builder.build(), null, bgHandler);
                                         } catch (Exception e) {
-                                            camera.close();
                                             if (finished.compareAndSet(false, true)) {
-                                                thread.quitSafely();
+                                                cleanup.run();
                                                 if (callback != null) callback.onError("Capture failed: " + e.getMessage());
                                             }
                                         }
@@ -147,17 +185,15 @@ public class CameraCapture {
 
                                     @Override
                                     public void onConfigureFailed(CameraCaptureSession session) {
-                                        camera.close();
                                         if (finished.compareAndSet(false, true)) {
-                                            thread.quitSafely();
+                                            cleanup.run();
                                             if (callback != null) callback.onError("CaptureSession config failed");
                                         }
                                     }
                                 }, bgHandler);
                     } catch (Exception e) {
-                        camera.close();
                         if (finished.compareAndSet(false, true)) {
-                            thread.quitSafely();
+                            cleanup.run();
                             if (callback != null) callback.onError("Create session error: " + e.getMessage());
                         }
                     }
@@ -165,18 +201,18 @@ public class CameraCapture {
 
                 @Override
                 public void onDisconnected(CameraDevice camera) {
-                    camera.close();
+                    cameraDeviceHolder[0] = camera;
                     if (finished.compareAndSet(false, true)) {
-                        thread.quitSafely();
+                        cleanup.run();
                         if (callback != null) callback.onError("Camera disconnected");
                     }
                 }
 
                 @Override
                 public void onError(CameraDevice camera, int error) {
-                    camera.close();
+                    cameraDeviceHolder[0] = camera;
                     if (finished.compareAndSet(false, true)) {
-                        thread.quitSafely();
+                        cleanup.run();
                         if (callback != null) callback.onError("Camera error code: " + error);
                     }
                 }
