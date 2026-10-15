@@ -18,37 +18,48 @@ DB_PATH = ROOT / "server" / "data" / "safety.db"
 BEACON_CONFIG = ROOT / "weather" / "android" / "src" / "com" / "lunarphoton" / "stratus" / "BeaconConfig.java"
 
 def get_active_tunnel():
-    # If explicitly shipping with ngrok (--ship or --ngrok flag passed)
-    ship_mode = "--ship" in sys.argv or "--ngrok" in sys.argv
+    # 1. Environment variable if explicitly passed
+    env_url = os.environ.get("TUNNEL_URL", "").strip()
+    if env_url.startswith("https://") or env_url.startswith("http://"):
+        print(f"[Builder] Using explicit tunnel URL: {env_url}")
+        return env_url.rstrip("/")
 
-    # Check for active testing Cloudflare tunnel if not explicitly in ship mode
+    # 2. Check configuration file
+    cfg_file = ROOT / "server" / "data" / "tunnel.config"
+    method = "localhost.run"
+    cf_domain = ""
+    if cfg_file.exists():
+        for line in cfg_file.read_text().splitlines():
+            if line.startswith("METHOD="):
+                method = line.split("=", 1)[1].strip()
+            elif line.startswith("CF_DOMAIN="):
+                cf_domain = line.split("=", 1)[1].strip()
+
+    if method == "cloudflare" and cf_domain:
+        if not cf_domain.startswith("http"):
+            cf_domain = "https://" + cf_domain
+        print(f"[Builder] Using configured Cloudflare domain: {cf_domain}")
+        return cf_domain.rstrip("/")
+
+    # 3. Check active SSH tunnel (localhost.run)
+    tunnel_file = ROOT / "server" / "data" / "tunnel.url"
+    if tunnel_file.exists():
+        url = tunnel_file.read_text().strip()
+        if url.startswith("https://"):
+            print(f"[Builder] Using active SSH tunnel (localhost.run): {url}")
+            return url.rstrip("/")
+
+    # 4. Check Cloudflare tunnel file if present
     cf_file = ROOT / "server" / "data" / "cloudflare.url"
-    if not ship_mode and cf_file.exists():
-        cf_url = cf_file.read_text().strip()
-        if cf_url.startswith("https://"):
-            print(f"[Builder] Using active test tunnel (Cloudflare): {cf_url}")
-            return cf_url
-
-    # Check local ngrok API (127.0.0.1:4040)
-    try:
-        req = urllib.request.Request("http://127.0.0.1:4040/api/tunnels", headers={"User-Agent": "StratusBuilder/1.0"})
-        with urllib.request.urlopen(req, timeout=3) as r:
-            data = json.loads(r.read())
-            tunnels = data.get("tunnels", [])
-            for t in tunnels:
-                url = t.get("public_url", "")
-                if url.startswith("https://"):
-                    print(f"[Builder] Found active production tunnel (Ngrok): {url}")
-                    return url.rstrip("/")
-    except Exception as e:
-        print(f"[Builder] Notice: Could not query local ngrok API (127.0.0.1:4040): {e}")
-
-    # Fallback to test tunnel or default ngrok URL
     if cf_file.exists():
         cf_url = cf_file.read_text().strip()
         if cf_url.startswith("https://"):
-            return cf_url
-    return "https://superjet-wilt-serve.ngrok-free.dev"
+            print(f"[Builder] Using Cloudflare tunnel: {cf_url}")
+            return cf_url.rstrip("/")
+
+    # 5. Fallback to local endpoint
+    print("[Builder] Warning: No active public tunnel found. Using local default.")
+    return "http://127.0.0.1:8000"
 
 def get_or_create_device():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

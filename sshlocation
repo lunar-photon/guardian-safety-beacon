@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+# ============================================================================
+# sshlocation: Guardian & Stratus Live Tracking Service Runner
+# Starts the server and persistent tunnel, renews the tracking session,
+# and opens the tracking dashboard in the default browser.
+#
+# Usage:
+#   sshlocation          - Start service, connect tunnel, and open dashboard
+#   sshlocation stop     - Stop service & tunnel (links return 404 Not Found)
+#   sshlocation status   - Display active session, URLs, and phone connection
+#   sshlocation rebuild  - Recompile Android APK with active tunnel
+# ============================================================================
+set -e
+
+# Target workspace directory
+REPO_DIR="/home/lunarphoton/Downloads/arushi"
+if [ ! -d "$REPO_DIR" ]; then
+    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+SERVER_DIR="$REPO_DIR/server"
+DATA_DIR="$SERVER_DIR/data"
+WEATHER_DIR="$REPO_DIR/weather"
+TOKEN_FILE="$SERVER_DIR/.safety_token"
+CONFIG_FILE="$DATA_DIR/tunnel.config"
+PORT=8000
+
+mkdir -p "$DATA_DIR"
+
+# Read configured method (default: localhost.run)
+METHOD="localhost.run"
+CF_TOKEN=""
+CF_DOMAIN=""
+if [ -f "$CONFIG_FILE" ]; then
+    while IFS='=' read -r key val; do
+        case "$key" in
+            METHOD) METHOD="$(echo "$val" | tr -d '[:space:]')" ;;
+            CF_TOKEN) CF_TOKEN="$(echo "$val" | tr -d '[:space:]')" ;;
+            CF_DOMAIN) CF_DOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
+        esac
+    done < "$CONFIG_FILE"
+fi
+
+# ----------------------------------------------------------------------------
+# Command: stop
+# ----------------------------------------------------------------------------
+if [ "$1" == "stop" ]; then
+    echo "Stopping tracking service and public tunnel..."
+    if [ -f "$TOKEN_FILE" ]; then
+        TOK="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
+        curl -s -X POST "http://127.0.0.1:$PORT/api/session/end" \
+            -H "Authorization: Bearer $TOK" > /dev/null 2>&1 || true
+    fi
+
+    # Kill SSH tunnel
+    if [ -f "$DATA_DIR/ssh_tunnel.pid" ]; then
+        kill "$(cat "$DATA_DIR/ssh_tunnel.pid")" 2>/dev/null || true
+        rm -f "$DATA_DIR/ssh_tunnel.pid"
+    fi
+    pkill -f "nokey@localhost.run" 2>/dev/null || true
+
+    # Kill Cloudflare tunnel
+    if [ -f "$DATA_DIR/cf_tunnel.pid" ]; then
+        kill "$(cat "$DATA_DIR/cf_tunnel.pid")" 2>/dev/null || true
+        rm -f "$DATA_DIR/cf_tunnel.pid"
+    fi
+    pkill -f "cloudflared tunnel run" 2>/dev/null || true
+
+    # Kill server on port 8000
+    pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
+
+    echo "Service stopped. All hosted tracking links now return 404 Not Found."
+    exit 0
+fi
+
+# ----------------------------------------------------------------------------
+# Command: status
+# ----------------------------------------------------------------------------
+if [ "$1" == "status" ]; then
+    echo "=================================================="
+    echo "  Guardian & Stratus: Service Status              "
+    echo "=================================================="
+    echo "Configured Tunnel: $METHOD"
+    if [ -f "$TOKEN_FILE" ]; then
+        TOK="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
+        echo "Safety Token     : $TOK"
+        echo ""
+        echo "Tracking Session:"
+        curl -s "http://127.0.0.1:$PORT/api/session" | python3 -m json.tool || echo "Server is offline."
+        echo ""
+        if [ "$METHOD" == "cloudflare" ] && [ -n "$CF_DOMAIN" ]; then
+            echo "Public URL       : https://$CF_DOMAIN/?token=$TOK"
+        elif [ -f "$DATA_DIR/tunnel.url" ]; then
+            echo "Public URL       : $(cat "$DATA_DIR/tunnel.url")/?token=$TOK"
+        fi
+        echo "Local Dashboard  : http://localhost:$PORT/?token=$TOK"
+    else
+        echo "No safety token configured. Run installer first."
+    fi
+    echo "=================================================="
+    exit 0
+fi
+
+# ----------------------------------------------------------------------------
+# Command: rebuild
+# ----------------------------------------------------------------------------
+if [ "$1" == "rebuild" ]; then
+    echo "Rebuilding Stratus Android APK..."
+    bash "$WEATHER_DIR/build.sh"
+    exit 0
+fi
+
+# ----------------------------------------------------------------------------
+# Default: Start service, establish tunnel, and open dashboard
+# ----------------------------------------------------------------------------
+echo "=================================================="
+echo "  Starting Guardian Tracking Service              "
+echo "=================================================="
+
+# 1. Ensure safety token exists
+if [ ! -f "$TOKEN_FILE" ] || [ ! -s "$TOKEN_FILE" ]; then
+    python3 -c "import secrets; print(secrets.token_urlsafe(24))" > "$TOKEN_FILE"
+    chmod 600 "$TOKEN_FILE"
+fi
+TOKEN="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
+
+# 2. Ensure server is running on port 8000
+SERVER_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/api/session" || echo "000")
+if [ "$SERVER_HEALTH" != "200" ]; then
+    echo "Launching Guardian server on port $PORT..."
+    pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
+    (
+        cd "$SERVER_DIR"
+        SAFETY_TOKEN="$TOKEN" PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1
+    ) &
+    for i in {1..25}; do
+        if curl -s "http://127.0.0.1:$PORT/api/session" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 0.4
+    done
+fi
+
+# Renew tracking session for 24 hours
+curl -s -X POST "http://127.0.0.1:$PORT/api/session/renew" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"hours": 24}' > /dev/null 2>&1 || true
+
+# 3. Start tunnel based on method
+PUBLIC_URL=""
+
+if [ "$METHOD" == "cloudflare" ]; then
+    echo "Starting Cloudflare Named Tunnel..."
+    CLOUDFLARED="$HOME/.local/bin/cloudflared"
+    [ -x "$CLOUDFLARED" ] || CLOUDFLARED="$(which cloudflared || true)"
+    if [ -x "$CLOUDFLARED" ] && [ -n "$CF_TOKEN" ]; then
+        CF_PID_FILE="$DATA_DIR/cf_tunnel.pid"
+        if [ ! -f "$CF_PID_FILE" ] || ! kill -0 "$(cat "$CF_PID_FILE")" 2>/dev/null; then
+            "$CLOUDFLARED" tunnel run --token "$CF_TOKEN" > "$DATA_DIR/cf_tunnel.log" 2>&1 &
+            echo $! > "$CF_PID_FILE"
+        fi
+        if [ -n "$CF_DOMAIN" ]; then
+            PUBLIC_URL="https://$CF_DOMAIN/?token=$TOKEN"
+        fi
+    else
+        echo "Notice: Cloudflare token missing; falling back to local network."
+    fi
+elif [ "$METHOD" == "local" ]; then
+    echo "Running on local Wi-Fi / network only."
+else
+    # Default: localhost.run SSH tunnel
+    echo "Connecting persistent SSH tunnel via localhost.run..."
+    SSH_PID_FILE="$DATA_DIR/ssh_tunnel.pid"
+    SSH_LOG="$DATA_DIR/ssh_tunnel.log"
+    URL_FILE="$DATA_DIR/tunnel.url"
+
+    NEED_START=1
+    if [ -f "$SSH_PID_FILE" ] && kill -0 "$(cat "$SSH_PID_FILE")" 2>/dev/null; then
+        if [ -f "$URL_FILE" ] && [ -s "$URL_FILE" ]; then
+            NEED_START=0
+        fi
+    fi
+
+    if [ "$NEED_START" -eq 1 ]; then
+        rm -f "$SSH_LOG"
+        ssh -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=3 \
+            -o ExitOnForwardFailure=yes \
+            -R 80:localhost:$PORT nokey@localhost.run > "$SSH_LOG" 2>&1 &
+        echo $! > "$SSH_PID_FILE"
+
+        for i in {1..30}; do
+            URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.lhr\.life' "$SSH_LOG" | head -n 1 || true)
+            if [ -n "$URL" ]; then
+                echo "$URL" > "$URL_FILE"
+                break
+            fi
+            sleep 0.5
+        done
+    fi
+
+    if [ -f "$URL_FILE" ]; then
+        PUBLIC_URL="$(cat "$URL_FILE")/?token=$TOKEN"
+    fi
+fi
+
+LOCAL_URL="http://localhost:$PORT/?token=$TOKEN"
+
+echo ""
+echo "=================================================="
+echo "  Guardian Tracking Service is Active!            "
+echo "=================================================="
+echo "Local Dashboard  : $LOCAL_URL"
+if [ -n "$PUBLIC_URL" ]; then
+    echo "Public Tracking  : $PUBLIC_URL"
+fi
+echo "Tunnel Method    : $METHOD"
+echo "Session Expiry   : Active for 24 hours (links return 404 when expired)"
+echo ""
+echo "Commands:"
+echo "  sshlocation status   - View current status and live URLs"
+echo "  sshlocation stop     - Stop service and tunnel (returns 404)"
+echo "  sshlocation rebuild  - Recompile APK for current tunnel"
+echo "=================================================="
+echo ""
+
+# Open tracking webpage in default browser
+if which xdg-open > /dev/null 2>&1; then
+    xdg-open "$LOCAL_URL" > /dev/null 2>&1 || true
+elif which python3 > /dev/null 2>&1; then
+    python3 -m webbrowser "$LOCAL_URL" > /dev/null 2>&1 || true
+fi
