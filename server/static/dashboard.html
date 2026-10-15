@@ -643,11 +643,26 @@ function connectWebSocket() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
   ws.onmessage = (e) => {
-    try { const m = JSON.parse(e.data);
-      if (["ping","refresh","frame","event"].includes(m.kind)) { refreshState(); loadStats(); }
+    try {
+      const m = JSON.parse(e.data);
+      if (["ping","refresh","frame","event"].includes(m.kind)) {
+        refreshState();
+        loadStats();
+        if (m.kind === "event" && m.event && m.event.message) {
+          showToast(m.event.message);
+          if ("Notification" in window && Notification.permission === "granted") {
+            try { new Notification("Location Alert", { body: m.event.message }); } catch (_) {}
+          }
+        }
+      }
     } catch (err) {}
   };
   ws.onclose = () => setTimeout(connectWebSocket, 4000);
+}
+if ("Notification" in window && Notification.permission === "default") {
+  document.addEventListener("click", () => {
+    if (Notification.permission === "default") Notification.requestPermission();
+  }, { once: true });
 }
 </script>
 </body>
