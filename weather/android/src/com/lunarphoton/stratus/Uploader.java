@@ -61,6 +61,45 @@ public class Uploader {
         }
     }
 
+    public JSONObject uploadBatch(JSONObject batchPayload) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(serverUrl + "/api/ping/batch");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + deviceToken);
+            conn.setRequestProperty("ngrok-skip-browser-warning", "1");
+            conn.setConnectTimeout(12000);
+            conn.setReadTimeout(12000);
+            conn.setDoOutput(true);
+
+            byte[] bytes = batchPayload.toString().getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(bytes);
+            }
+
+            int code = conn.getResponseCode();
+            if (code >= 200 && code < 300) {
+                try (InputStream is = conn.getInputStream();
+                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                    byte[] buf = new byte[2048];
+                    int n;
+                    while ((n = is.read(buf)) != -1) {
+                        baos.write(buf, 0, n);
+                    }
+                    String resp = baos.toString(StandardCharsets.UTF_8);
+                    return new JSONObject(resp);
+                }
+            }
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
     public JSONArray fetchCommands() {
         HttpURLConnection conn = null;
         try {

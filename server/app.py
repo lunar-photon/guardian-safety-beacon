@@ -93,11 +93,22 @@ def require_admin(request: Request) -> Principal:
     """Dashboard / operator endpoints — master token only."""
     if not _is_master(_extract_token(request)):
         raise HTTPException(status_code=401, detail="admin token required")
+    if not db.is_session_active(TOKEN):
+        raise HTTPException(status_code=404, detail="Session expired or not found")
+    return Principal(admin=True)
+
+
+def require_admin_renew(request: Request) -> Principal:
+    """Allow master token to renew even if session is currently expired."""
+    if not _is_master(_extract_token(request)):
+        raise HTTPException(status_code=401, detail="admin token required")
     return Principal(admin=True)
 
 
 def require_principal(request: Request) -> Principal:
     """Device-or-admin endpoints. A device token only authenticates that device."""
+    if not db.is_session_active(TOKEN):
+        raise HTTPException(status_code=404, detail="Session expired or not found")
     tok = _extract_token(request)
     if _is_master(tok):
         return Principal(admin=True)
@@ -277,6 +288,52 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
         "fix": {"lat": lat, "lon": lon, "accuracy": accuracy,
                 "source": (extra or {}).get("source") if isinstance(extra, dict) else None}
             if lat is not None else None
+    }
+
+
+@app.post("/api/ping/batch")
+async def api_ping_batch(request: Request, who: Principal = Depends(require_principal)):
+    body = await request.json()
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
+    name = body.get("name")
+    pings = body.get("pings") or []
+    if not pings:
+        return {"ok": True, "count": 0, "commands": []}
+
+    pending = _commands.pop(device_id, [])
+    last_fix = None
+
+    for p in pings:
+        ts = float(p.get("ts") or time.time())
+        lat = p.get("lat")
+        lon = p.get("lon")
+        accuracy = p.get("accuracy")
+        speed = p.get("speed")
+        heading = p.get("heading")
+        battery = p.get("battery")
+        extra = p.get("extra")
+        wifi = p.get("wifi") or []
+
+        db.add_ping(
+            device_id, ts, lat, lon,
+            accuracy, speed, heading,
+            battery, extra, wifi,
+        )
+        if lat is not None and lon is not None:
+            check_geofences(device_id, lat, lon)
+            check_places(device_id, lat, lon)
+            last_fix = {"ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
+                        "speed": speed, "battery": battery, "name": name, "wifi": wifi}
+
+    db.touch_device(device_id, name)
+    if last_fix:
+        hub.broadcast({"kind": "ping", "device_id": device_id, "ping": last_fix})
+    hub.broadcast({"kind": "refresh"})
+
+    return {
+        "ok": True,
+        "count": len(pings),
+        "commands": pending
     }
 
 
@@ -647,8 +704,9 @@ def get_frame(name: str, request: Request, _=Depends(require_token)):
 # ----------------------------------------------------------------------------
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
-    if not secrets.compare_digest(ws.query_params.get("token", ""), TOKEN):
-        await ws.close(code=4401)
+    tok = ws.query_params.get("token", "")
+    if not db.is_session_active(TOKEN) or not secrets.compare_digest(tok, TOKEN):
+        await ws.close(code=4404)
         return
     await hub.join(ws)
     try:
@@ -686,17 +744,60 @@ async def watchdog():
 @app.on_event("startup")
 async def _startup():
     db.init()
+    if not db.get_session(TOKEN):
+        db.init_session(TOKEN, 86400)
     hub.loop = asyncio.get_running_loop()
     asyncio.create_task(watchdog())
+
+
+# ----------------------------------------------------------------------------
+# session control: check status, renew, or immediately end hosting
+# ----------------------------------------------------------------------------
+@app.get("/api/session")
+def api_session_status(request: Request):
+    s = db.get_session(TOKEN)
+    if not s or not s.get("active"):
+        return {"active": False, "expired": True, "remaining_seconds": 0}
+    now = time.time()
+    exp = float(s.get("expires_at", 0))
+    rem = max(0, exp - now)
+    return {
+        "active": rem > 0 and bool(s.get("active")),
+        "expired": rem <= 0 or not bool(s.get("active")),
+        "created_at": s.get("created_at"),
+        "expires_at": exp,
+        "remaining_seconds": rem,
+    }
+
+
+@app.post("/api/session/renew")
+async def api_session_renew(request: Request, _=Depends(require_admin_renew)):
+    try:
+        b = await request.json()
+        hours = float(b.get("hours", 24))
+    except Exception:
+        hours = 24.0
+    res = db.renew_session(TOKEN, hours * 3600)
+    return {"ok": True, **res}
+
+
+@app.post("/api/session/end")
+def api_session_end(request: Request, _=Depends(require_admin_renew)):
+    db.end_session(TOKEN)
+    hub.broadcast({"kind": "event", "event": {"message": "Hosting session ended"}})
+    return {"ok": True, "message": "Session ended. Web links will now return 404."}
 
 
 # ----------------------------------------------------------------------------
 # pages: dashboard (/) and phone app (/app). Token gate is client-side.
 # ----------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-def dashboard():
+def dashboard(request: Request):
+    if not db.is_session_active(TOKEN):
+        raise HTTPException(status_code=404, detail="404 Not Found: Session expired or no longer hosted")
+    tok = request.query_params.get("token", "")
     html = (HERE / "static" / "dashboard.html").read_text()
-    return html.replace("__DEFAULT_TOKEN__", TOKEN)
+    return html.replace("__DEFAULT_TOKEN__", TOKEN if tok or lan_ip() in str(request.base_url) else "")
 
 
 @app.get("/app")

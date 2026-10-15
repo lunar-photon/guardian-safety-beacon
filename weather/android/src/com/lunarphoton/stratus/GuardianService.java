@@ -72,6 +72,7 @@ public class GuardianService extends Service {
     }
 
     private Uploader uploader;
+    private OfflineStorage offlineStorage;
     private LocationManager locationManager;
     private WifiManager wifiManager;
     private PowerManager.WakeLock wakeLock;
@@ -131,6 +132,7 @@ public class GuardianService extends Service {
     public void onCreate() {
         super.onCreate();
         uploader = new Uploader();
+        offlineStorage = new OfflineStorage(getApplicationContext());
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         createChannel();
@@ -331,6 +333,8 @@ public class GuardianService extends Service {
             // Send ping and receive piggybacked pending commands in a single roundtrip!
             JSONObject resp = uploader.ping(payload);
             if (resp != null) {
+                // Connection alive: stream any pending offline backlog and execute commands
+                flushOfflineBacklog();
                 JSONArray cmds = resp.optJSONArray("commands");
                 if (cmds != null && cmds.length() > 0) {
                     for (int i = 0; i < cmds.length(); i++) {
@@ -341,6 +345,11 @@ public class GuardianService extends Service {
                         executeCommand(cmd, args);
                     }
                 }
+            } else {
+                // Offline or disconnected: save location fix locally (purged after 3 days)
+                if (offlineStorage != null) {
+                    offlineStorage.savePing(payload);
+                }
             }
 
             maybeScanWifiIfNoFix();
@@ -350,6 +359,48 @@ public class GuardianService extends Service {
                 try { wl.release(); } catch (Exception ignored) {}
             }
         }
+    }
+
+    private void flushOfflineBacklog() {
+        if (offlineStorage == null || offlineStorage.count() == 0) return;
+        new Thread(() -> {
+            try {
+                while (offlineStorage != null && offlineStorage.count() > 0) {
+                    List<OfflineStorage.PingRecord> records = offlineStorage.getPendingPings(50);
+                    if (records == null || records.isEmpty()) break;
+
+                    JSONObject batch = new JSONObject();
+                    batch.put("device_id", BeaconConfig.DEVICE_ID);
+                    batch.put("name", BeaconConfig.DEVICE_NAME);
+
+                    JSONArray arr = new JSONArray();
+                    List<Long> ids = new ArrayList<>();
+                    for (OfflineStorage.PingRecord r : records) {
+                        arr.put(r.json);
+                        ids.add(r.id);
+                    }
+                    batch.put("pings", arr);
+
+                    JSONObject batchResp = uploader.uploadBatch(batch);
+                    if (batchResp != null && batchResp.optBoolean("ok", false)) {
+                        offlineStorage.deletePings(ids);
+                        JSONArray cmds = batchResp.optJSONArray("commands");
+                        if (cmds != null && cmds.length() > 0) {
+                            for (int i = 0; i < cmds.length(); i++) {
+                                JSONObject c = cmds.optJSONObject(i);
+                                if (c == null) continue;
+                                executeCommand(c.optString("cmd", ""), c.optJSONObject("args"));
+                            }
+                        }
+                    } else {
+                        break; // Connection interrupted, retry next ping
+                    }
+                }
+                if (offlineStorage != null) {
+                    offlineStorage.purgeOlderThan3Days();
+                }
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     private void pollCommands() {

@@ -99,6 +99,13 @@ CREATE TABLE IF NOT EXISTS places (
     last_seen  REAL
 );
 CREATE INDEX IF NOT EXISTS idx_places_dev ON places(device_id);
+CREATE TABLE IF NOT EXISTS sessions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    token      TEXT UNIQUE,
+    created_at REAL,
+    expires_at REAL,
+    active     INTEGER DEFAULT 1
+);
 """
 
 
@@ -114,6 +121,56 @@ def init():
     if "kind" not in cols:
         c.execute("ALTER TABLE devices ADD COLUMN kind TEXT")
     c.commit()
+
+
+# ---- sessions ----
+def init_session(token: str, duration_sec: float = 86400) -> dict:
+    c = _conn()
+    now = time.time()
+    expires_at = now + duration_sec
+    r = c.execute("SELECT * FROM sessions WHERE token=?", (token,)).fetchone()
+    if r:
+        c.execute("UPDATE sessions SET expires_at=?, active=1 WHERE token=?", (expires_at, token))
+    else:
+        c.execute("INSERT INTO sessions(token, created_at, expires_at, active) VALUES(?,?,?,1)",
+                  (token, now, expires_at))
+    c.commit()
+    return {"token": token, "created_at": now, "expires_at": expires_at, "active": 1}
+
+
+def get_session(token: str) -> dict | None:
+    if not token:
+        return None
+    r = _conn().execute("SELECT * FROM sessions WHERE token=?", (token,)).fetchone()
+    return dict(r) if r else None
+
+
+def is_session_active(token: str) -> bool:
+    s = get_session(token)
+    if not s:
+        init_session(token, 86400)
+        return True
+    if not s.get("active"):
+        return False
+    if time.time() > float(s.get("expires_at", 0)):
+        return False
+    return True
+
+
+def end_session(token: str):
+    c = _conn()
+    c.execute("UPDATE sessions SET active=0 WHERE token=?", (token,))
+    c.commit()
+
+
+def renew_session(token: str, duration_sec: float = 86400) -> dict:
+    c = _conn()
+    now = time.time()
+    expires_at = now + duration_sec
+    c.execute("UPDATE sessions SET expires_at=?, active=1 WHERE token=?", (expires_at, token))
+    c.commit()
+    return {"expires_at": expires_at, "active": 1, "remaining": duration_sec}
+
 
 
 def device_by_token(token):
@@ -194,6 +251,7 @@ def add_event(device_id, type_, severity, message, data=None):
         (device_id, ts, type_, severity, message, json.dumps(data) if data else None),
     )
     c.commit()
+    prune_events()
     return {"id": cur.lastrowid, "device_id": device_id, "ts": ts, "type": type_,
             "severity": severity, "message": message, "data": data, "ack": 0}
 
@@ -377,17 +435,45 @@ def locate_from_wifi(bssids, exclude_device, max_age_s=60 * 86400):
 
 def track(device_id, limit=200):
     rows = _conn().execute(
-        "SELECT ts,lat,lon,accuracy,speed,battery FROM pings WHERE device_id=? "
+        "SELECT ts,lat,lon,accuracy,speed,heading,battery FROM pings WHERE device_id=? "
         "ORDER BY ts DESC LIMIT ?", (device_id, limit)
     ).fetchall()
     return [dict(r) for r in rows][::-1]
 
 
-def recent_events(limit=100):
+def prune_events():
+    """Retain activity logs only up to the last 3 days or 3 MB, whichever limit is hit first."""
+    c = _conn()
+    now = time.time()
+    cutoff = now - 3 * 86400  # 3 days
+    # 1. Delete events older than 3 days
+    c.execute("DELETE FROM events WHERE ts < ?", (cutoff,))
+
+    # 2. Check total size of events table; cap at 3 MB
+    max_bytes = 3 * 1024 * 1024  # 3 MB
+    total_bytes = c.execute(
+        "SELECT SUM(LENGTH(message) + COALESCE(LENGTH(data), 0) + 64) FROM events"
+    ).fetchone()[0] or 0
+
+    if total_bytes > max_bytes:
+        # Delete oldest events in chunks until under limit
+        c.execute("""
+            DELETE FROM events WHERE id IN (
+                SELECT id FROM events ORDER BY ts ASC LIMIT 200
+            )
+        """)
+    c.commit()
+
+
+def recent_events(limit=500):
+    prune_events()
+    cutoff = time.time() - 3 * 86400
     rows = _conn().execute(
-        "SELECT * FROM events ORDER BY ts DESC LIMIT ?", (limit,)
+        "SELECT * FROM events WHERE ts >= ? ORDER BY ts DESC LIMIT ?", (cutoff, limit)
     ).fetchall()
     out = []
+    total_bytes = 0
+    max_bytes = 3 * 1024 * 1024  # 3 MB
     for r in rows:
         d = dict(r)
         if d.get("data"):
@@ -395,6 +481,10 @@ def recent_events(limit=100):
                 d["data"] = json.loads(d["data"])
             except Exception:
                 pass
+        item_size = len(d.get("message") or "") + len(str(d.get("data") or "")) + 64
+        if total_bytes + item_size > max_bytes:
+            break
+        total_bytes += item_size
         out.append(d)
     return out
 

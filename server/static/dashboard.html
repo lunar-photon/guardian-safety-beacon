@@ -425,6 +425,10 @@ const homeIcon = L.divIcon({ className: "beacon-wrap", html: '<div class="home-p
 async function refreshState() {
   try {
     const res = await fetch("/api/state", { headers: { Authorization: "Bearer " + TOKEN } });
+    if (res.status === 404) {
+      document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;background:#0b0f19;color:#94a3b8;font-family:sans-serif;text-align:center;padding:20px;"><div><h1 style="color:#f1f5f9;font-size:32px;margin-bottom:8px;">404 Not Found</h1><p style="font-size:15px;">This tracking session has expired and hosting has stopped.</p></div></div>';
+      return;
+    }
     if (!res.ok) return;
     const data = await res.json();
     if (!data.devices || !data.devices.length) return;
@@ -540,11 +544,22 @@ async function cycleRate() {
 }
 
 /* ---------- Statistics ---------- */
+function formatHeading(deg) {
+  if (deg == null || isNaN(deg) || deg < 0) return "—";
+  const directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const idx = Math.round((deg % 360) / 22.5) % 16;
+  return `${Math.round(deg)}° ${directions[idx]}`;
+}
+function formatSpeed(spd) {
+  if (spd == null || isNaN(spd) || spd < 1.0) return "Stationary";
+  return `${spd.toFixed(1)} <small>km/h</small>`;
+}
 async function loadStats() {
   if (!currentDevice) return;
   try {
     const track = await fetchTrack(currentDevice.id);
-    lastStats = computeStats(track);
+    const lastFix = currentDevice.last_fix || currentDevice.last_ping;
+    lastStats = computeStats(track, lastFix);
     attachPhotos(lastStats, latestFrames, track);
     renderStats(lastStats);
     renderPlaces(lastStats);
@@ -553,7 +568,7 @@ async function loadStats() {
     document.getElementById("statCards").innerHTML = '<div class="empty" style="grid-column:1/-1">Couldn\'t load your history.</div>';
   }
 }
-function computeStats(track) {
+function computeStats(track, lastFix) {
   const pts = track.filter(p => p.lat != null && p.lon != null);
   let dist = 0;
   for (let i = 1; i < pts.length; i++) dist += haversine(pts[i-1], pts[i]);
@@ -561,6 +576,17 @@ function computeStats(track) {
   const span = ts.length > 1 ? (ts[ts.length-1].ts - ts[0].ts) : null;
   const accs = pts.filter(p => p.accuracy != null).map(p => p.accuracy);
   const avgAcc = accs.length ? accs.reduce((a,b)=>a+b,0)/accs.length : null;
+
+  // Speeds in km/h
+  const validSpeeds = pts.filter(p => p.speed != null && p.speed >= 0).map(p => p.speed * 3.6);
+  const maxSpeed = validSpeeds.length ? Math.max(...validSpeeds) : 0;
+
+  // Latest fix / telemetry
+  const latestPt = (lastFix && lastFix.lat != null) ? lastFix : (pts.length ? pts[pts.length - 1] : null);
+  const curSpeed = (latestPt && latestPt.speed != null && latestPt.speed >= 0) ? (latestPt.speed * 3.6) : null;
+  const curHeading = (latestPt && latestPt.heading != null && latestPt.heading >= 0) ? latestPt.heading : null;
+  const curAcc = (latestPt && latestPt.accuracy != null) ? latestPt.accuracy : null;
+
   const RADIUS = 90;
   const raw = []; let cur = null;
   const ordered = ts.length ? ts : pts;
@@ -579,11 +605,14 @@ function computeStats(track) {
     else places.push({ c: {lat:r.c.lat, lon:r.c.lon}, dwell, visits: 1, points: r.n, photos: [] });
   }
   places.sort((a,b) => (b.dwell-a.dwell) || (b.visits-a.visits) || (b.points-a.points));
-  return { dist, span, count: pts.length, avgAcc, places, hasTime: ts.length > 1, top: places[0] || null };
+  return { dist, span, count: pts.length, avgAcc, places, hasTime: ts.length > 1, top: places[0] || null, curSpeed, maxSpeed, curHeading, curAcc };
 }
 function attachPhotos(stats, frames, track) {
   const ts = track.filter(p => p.ts != null);
-  for (const f of frames) {
+  for (const pl of stats.places) pl.photos = [];
+  // Order images chronologically by capture time (newest first)
+  const sortedFrames = [...frames].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  for (const f of sortedFrames) {
     let pos = (f.lat != null && f.lon != null) ? { lat: f.lat, lon: f.lon } : null;
     if (!pos && f.ts != null && ts.length) {
       let best = null, bestDt = Infinity;
@@ -593,7 +622,12 @@ function attachPhotos(stats, frames, track) {
     if (!pos) continue;
     let near = null, nd = Infinity;
     for (const pl of stats.places) { const d = haversine(pl.c, pos); if (d < nd) { nd = d; near = pl; } }
-    if (near && nd <= 160) near.photos.push(frameUrl(f));
+    if (near && nd <= 160) {
+      // Only stores/shows last 5 images per place
+      if (near.photos.length < 5) {
+        near.photos.push(frameUrl(f));
+      }
+    }
   }
 }
 function renderStats(s) {
@@ -601,12 +635,19 @@ function renderStats(s) {
   if (!s.count) { el.innerHTML = '<div class="empty" style="grid-column:1/-1">No location history recorded yet.</div>'; return; }
   const d = fmtDist(s.dist);
   const timeTxt = s.span != null ? fmtDur(s.span) : "—";
-  const accTxt = s.avgAcc != null ? `${Math.round(s.avgAcc)}<small> m</small>` : "—";
+  const motionTxt = formatSpeed(s.curSpeed);
+  const maxSpdTxt = s.maxSpeed > 1.0 ? `${s.maxSpeed.toFixed(1)}<small> km/h</small>` : "—";
+  const headingTxt = formatHeading(s.curHeading);
+  const accTxt = s.curAcc != null ? `±${Math.round(s.curAcc)}<small> m</small>` : (s.avgAcc != null ? `±${Math.round(s.avgAcc)}<small> m</small>` : "—");
   el.innerHTML = `
+    <div class="scard"><div class="k">Current Motion</div><div class="v num">${motionTxt}</div></div>
+    <div class="scard"><div class="k">Heading</div><div class="v num">${headingTxt}</div></div>
     <div class="scard"><div class="k">Distance travelled</div><div class="v num">${d.n}<small> ${d.u}</small></div></div>
+    <div class="scard"><div class="k">Max speed</div><div class="v num">${maxSpdTxt}</div></div>
+    <div class="scard"><div class="k">GPS Accuracy</div><div class="v num">${accTxt}</div></div>
     <div class="scard"><div class="k">Time tracked</div><div class="v num">${timeTxt}</div></div>
-    <div class="scard"><div class="k">Places visited</div><div class="v num">${s.places.length}</div></div>
-    <div class="scard"><div class="k">Avg. accuracy</div><div class="v num">${accTxt}</div></div>`;
+    <div class="scard"><div class="k">Points logged</div><div class="v num">${s.count}</div></div>
+    <div class="scard"><div class="k">Places visited</div><div class="v num">${s.places.length}</div></div>`;
 }
 function renderPlaces(s) {
   const el = document.getElementById("placesList");
