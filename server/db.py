@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS devices (
     first_seen REAL,
     last_seen  REAL,
     watch      INTEGER DEFAULT 1,     -- 1 = watchdog armed (alert if it goes silent)
-    online     INTEGER DEFAULT 0
+    online     INTEGER DEFAULT 0,
+    token      TEXT,                  -- per-device token (null for legacy/admin-created)
+    revoked    INTEGER DEFAULT 0      -- 1 = token disabled; device can't post
 );
 CREATE TABLE IF NOT EXISTS pings (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,6 +102,39 @@ CREATE INDEX IF NOT EXISTS idx_places_dev ON places(device_id);
 def init():
     c = _conn()
     c.executescript(SCHEMA)
+    # migrate older DBs that predate per-device tokens
+    cols = {r[1] for r in c.execute("PRAGMA table_info(devices)").fetchall()}
+    if "token" not in cols:
+        c.execute("ALTER TABLE devices ADD COLUMN token TEXT")
+    if "revoked" not in cols:
+        c.execute("ALTER TABLE devices ADD COLUMN revoked INTEGER DEFAULT 0")
+    c.commit()
+
+
+def device_by_token(token):
+    """Return the device row for a valid, non-revoked device token, else None."""
+    if not token:
+        return None
+    r = _conn().execute(
+        "SELECT * FROM devices WHERE token=? AND COALESCE(revoked,0)=0", (token,)
+    ).fetchone()
+    return dict(r) if r else None
+
+
+def create_paired_device(device_id, name, token):
+    c = _conn()
+    now = time.time()
+    c.execute(
+        "INSERT INTO devices(id,name,first_seen,last_seen,watch,online,token,revoked) "
+        "VALUES(?,?,?,?,1,0,?,0)",
+        (device_id, name, now, now, token),
+    )
+    c.commit()
+
+
+def set_device_revoked(device_id, revoked):
+    c = _conn()
+    c.execute("UPDATE devices SET revoked=? WHERE id=?", (1 if revoked else 0, device_id))
     c.commit()
 
 
@@ -271,7 +306,12 @@ def add_geofences_bulk(items):
 
 # ---- reads for dashboard ----
 def list_devices():
-    return [dict(r) for r in _conn().execute("SELECT * FROM devices ORDER BY last_seen DESC").fetchall()]
+    out = []
+    for r in _conn().execute("SELECT * FROM devices ORDER BY last_seen DESC").fetchall():
+        d = dict(r)
+        d.pop("token", None)   # never expose per-device tokens in listings
+        out.append(d)
+    return out
 
 
 def last_ping(device_id):

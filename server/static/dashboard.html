@@ -272,11 +272,15 @@ function renderDevices(){
     const spd = lp.speed!=null ? (lp.speed*3.6).toFixed(1)+" km/h" : "—";
     const c=document.createElement("div");
     c.className="card"+(selected===d.id?" sel":"");
-    c.innerHTML=`<div class="dev-name"><span class="dot ${online?'on':'off'}"></span>${esc(d.name||d.id)}</div>
+    c.innerHTML=`<div class="dev-name"><span class="dot ${online?'on':'off'}"></span>${esc(d.name||d.id)}
+        ${d.revoked?'<span class="pill" style="color:var(--crit);border-color:var(--crit)">revoked</span>':''}</div>
       <div class="meta">
         <span class="pill">🔋 ${bat}</span><span class="pill">🏃 ${spd}</span><br>
         last signal ${fmtAgo(d.last_seen)}
         ${lp.lat!=null?`<br>${lp.lat.toFixed(5)}, ${lp.lon.toFixed(5)} (±${Math.round(lp.accuracy||0)}m)`:""}
+        <br><button class="ghost" style="padding:2px 8px;margin-top:5px"
+            onclick="event.stopPropagation(); toggleRevoke('${d.id}', ${d.revoked?0:1})">
+            ${d.revoked?'✓ Restore access':'⛔ Revoke'}</button>
       </div>`;
     c.onclick=()=>selectDevice(d.id);
     el.appendChild(c);
@@ -291,6 +295,12 @@ function placeMarker(d, online){
     markers[d.id]=L.marker(ll).addTo(map).on("click",()=>selectDevice(d.id));
   }
   markers[d.id].bindTooltip(esc(d.name||d.id)+(online?"":" (offline)"),{permanent:false});
+}
+
+async function toggleRevoke(id, revoke){
+  if(revoke && !confirm("Revoke this phone's access? It can't send anything until you restore it.")) return;
+  await api("/api/device/"+encodeURIComponent(id)+"/"+(revoke?"revoke":"restore"),{method:"POST"});
+  refresh();
 }
 
 async function selectDevice(id){

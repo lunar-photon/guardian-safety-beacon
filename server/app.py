@@ -62,10 +62,37 @@ def _extract_token(request: Request) -> str:
     return request.query_params.get("token", "")
 
 
-def require_token(request: Request):
-    if not secrets.compare_digest(_extract_token(request), TOKEN):
-        raise HTTPException(status_code=401, detail="bad token")
-    return True
+class Principal:
+    """Who is calling: the admin (master token) or a specific paired device."""
+    def __init__(self, admin: bool, device_id: str | None = None):
+        self.admin = admin
+        self.device_id = device_id
+
+
+def _is_master(token: str) -> bool:
+    return bool(token) and secrets.compare_digest(token, TOKEN)
+
+
+def require_admin(request: Request) -> Principal:
+    """Dashboard / operator endpoints — master token only."""
+    if not _is_master(_extract_token(request)):
+        raise HTTPException(status_code=401, detail="admin token required")
+    return Principal(admin=True)
+
+
+def require_principal(request: Request) -> Principal:
+    """Device-or-admin endpoints. A device token only authenticates that device."""
+    tok = _extract_token(request)
+    if _is_master(tok):
+        return Principal(admin=True)
+    dev = db.device_by_token(tok)
+    if dev:
+        return Principal(admin=False, device_id=dev["id"])
+    raise HTTPException(status_code=401, detail="bad or revoked token")
+
+
+# Back-compat alias: existing admin endpoints use this name.
+require_token = require_admin
 
 
 # ----------------------------------------------------------------------------
@@ -186,9 +213,9 @@ def check_geofences(device_id, lat, lon):
 # device-facing API
 # ----------------------------------------------------------------------------
 @app.post("/api/ping")
-async def api_ping(request: Request, _=Depends(require_token)):
+async def api_ping(request: Request, who: Principal = Depends(require_principal)):
     body = await request.json()
-    device_id = str(body.get("device_id") or "unknown")
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
     name = body.get("name")
     ts = float(body.get("ts") or time.time())
     lat = body.get("lat")
@@ -213,9 +240,9 @@ async def api_ping(request: Request, _=Depends(require_token)):
 
 
 @app.post("/api/trigger")
-async def api_trigger(request: Request, _=Depends(require_token)):
+async def api_trigger(request: Request, who: Principal = Depends(require_principal)):
     body = await request.json()
-    device_id = str(body.get("device_id") or "unknown")
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
     kind = body.get("kind", "sos")
     msg = body.get("message") or "SOS triggered"
     db.touch_device(device_id, body.get("name"))
@@ -226,9 +253,9 @@ async def api_trigger(request: Request, _=Depends(require_token)):
 
 
 @app.post("/api/frame")
-async def api_frame(request: Request, _=Depends(require_token)):
+async def api_frame(request: Request, who: Principal = Depends(require_principal)):
     body = await request.json()
-    device_id = str(body.get("device_id") or "unknown")
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
     kind = body.get("kind", "manual")
     image = body.get("image_b64", "")
     if "," in image:  # strip data URL prefix if present
@@ -305,10 +332,10 @@ async def api_bulk_geofence(request: Request, _=Depends(require_token)):
 
 
 @app.get("/api/config")
-def api_config(request: Request, _=Depends(require_token)):
+def api_config(request: Request, who: Principal = Depends(require_principal)):
     """Client config: helpline numbers, proximity radius, danger zones and known
        places so phones can warn/log on approach even without the dashboard open."""
-    device_id = request.query_params.get("device_id")
+    device_id = who.device_id or request.query_params.get("device_id")
     return {
         "helplines": HELPLINES,
         "proximity_warn_m": PROXIMITY_WARN_M,
@@ -324,11 +351,12 @@ def api_places(request: Request, _=Depends(require_token)):
 
 
 @app.post("/api/places")
-async def api_add_place(request: Request, _=Depends(require_token)):
+async def api_add_place(request: Request, who: Principal = Depends(require_principal)):
     b = await request.json()
-    pid = db.add_place(b["device_id"], b.get("name", "Place"), float(b["lat"]),
+    device_id = who.device_id or b["device_id"]      # a device can only add its own places
+    pid = db.add_place(device_id, b.get("name", "Place"), float(b["lat"]),
                        float(b["lon"]), float(b.get("radius", 120)), b.get("kind", "custom"))
-    _place_state.pop(b["device_id"], None)
+    _place_state.pop(device_id, None)
     hub.broadcast({"kind": "refresh"})
     return {"ok": True, "id": pid}
 
@@ -372,9 +400,9 @@ async def api_command(request: Request, _=Depends(require_token)):
 
 
 @app.get("/api/commands")
-def api_commands(request: Request, _=Depends(require_token)):
-    """Phone drains its pending commands (and clears them)."""
-    dev = request.query_params.get("device_id", "")
+def api_commands(request: Request, who: Principal = Depends(require_principal)):
+    """Phone drains its pending commands (and clears them). A device can only drain its own."""
+    dev = who.device_id or request.query_params.get("device_id", "")
     pending = _commands.pop(dev, [])
     return {"commands": pending}
 
@@ -415,10 +443,27 @@ async def api_pair_claim(request: Request):
     entry["used"] = True
     device_id = "dev-" + secrets.token_hex(4)
     name = (b.get("name") or "paired phone").strip()
-    db.touch_device(device_id, name)
+    dev_token = secrets.token_urlsafe(24)            # unique per-device token
+    db.create_paired_device(device_id, name, dev_token)
     ev = db.add_event(device_id, "pair", "info", f"Paired new device: {name}", None)
     hub.broadcast({"kind": "event", "event": ev})
-    return {"ok": True, "token": TOKEN, "device_id": device_id, "name": name}
+    return {"ok": True, "token": dev_token, "device_id": device_id, "name": name}
+
+
+@app.post("/api/device/{device_id}/revoke")
+def api_revoke(device_id: str, request: Request, _=Depends(require_admin)):
+    """Disable one phone's token immediately. Other devices are unaffected."""
+    db.set_device_revoked(device_id, True)
+    ev = db.add_event(device_id, "revoke", "warn", "Device access revoked", None)
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True}
+
+
+@app.post("/api/device/{device_id}/restore")
+def api_restore(device_id: str, request: Request, _=Depends(require_admin)):
+    db.set_device_revoked(device_id, False)
+    hub.broadcast({"kind": "refresh"})
+    return {"ok": True}
 
 
 @app.post("/api/ack/{event_id}")
