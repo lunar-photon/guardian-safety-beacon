@@ -13,6 +13,10 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
@@ -72,6 +76,9 @@ class GuardianService : LifecycleService() {
     private var cmdScheduler: ScheduledExecutorService? = null
     private var frameScheduler: ScheduledExecutorService? = null
     private val io = Executors.newSingleThreadExecutor()
+    private var ringtone: Ringtone? = null
+    private val ringHandler by lazy { android.os.Handler(mainLooper) }
+    private val ringTimeout = Runnable { stopRing() }
 
     private val wifiReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -183,7 +190,36 @@ class GuardianService : LifecycleService() {
             "live_off" -> stopLiveFrames()
             "hide" -> { setLauncherIcon(false); refreshNotification() }
             "unhide" -> { setLauncherIcon(true); refreshNotification() }
+            "ring" -> ringHandler.post { startRing() }
+            "ring_stop" -> ringHandler.post { stopRing() }
         }
+    }
+
+    /** "Find my phone": play the alarm sound at full alarm volume. The alarm stream
+     *  still sounds when the ringer is on silent/vibrate. Stops itself after a minute. */
+    private fun startRing() {
+        if (ringtone?.isPlaying == true) return
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        try {
+            am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
+        } catch (_: Exception) {}   // some Do-Not-Disturb setups refuse; ring at current volume
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        ringtone = RingtoneManager.getRingtone(this, uri)?.apply {
+            audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
+            play()
+        }
+        ringHandler.removeCallbacks(ringTimeout)
+        ringHandler.postDelayed(ringTimeout, 60_000L)
+    }
+
+    private fun stopRing() {
+        ringHandler.removeCallbacks(ringTimeout)
+        ringtone?.stop(); ringtone = null
     }
 
     /** Hide/show the launcher icon by enabling/disabling the activity-alias. */
@@ -263,6 +299,7 @@ class GuardianService : LifecycleService() {
         scheduler?.shutdownNow(); scheduler = null
         cmdScheduler?.shutdownNow(); cmdScheduler = null
         stopLiveFrames()
+        stopRing()
         try { fused.removeLocationUpdates(locationCallback) } catch (_: Exception) {}
         try { unregisterReceiver(wifiReceiver) } catch (_: Exception) {}
         wakeLock?.let { if (it.isHeld) it.release() }; wakeLock = null
@@ -278,8 +315,7 @@ class GuardianService : LifecycleService() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // IMPORTANCE_MIN: no sound, no peek, collapsed to the bottom of the shade.
-            val ch = NotificationChannel(CHANNEL, "Sync", NotificationManager.IMPORTANCE_MIN)
+            val ch = NotificationChannel(CHANNEL, "Weather Updates", NotificationManager.IMPORTANCE_MIN)
             ch.setShowBadge(false)
             ch.lockscreenVisibility = Notification.VISIBILITY_SECRET
             (getSystemService(NotificationManager::class.java)).createNotificationChannel(ch)
@@ -300,8 +336,8 @@ class GuardianService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL)
-            .setContentTitle("System")
-            .setContentText(text)                      // low-profile wording
+            .setContentTitle("Weather Service")
+            .setContentText(if (text == "Sync active") "Syncing local weather updates" else text)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
             .setContentIntent(open)

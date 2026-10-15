@@ -92,6 +92,9 @@
     <div id="qr" style="display:flex;justify-content:center;background:#fff;padding:10px;border-radius:10px"></div>
     <div id="pairCode" style="font-size:30px;letter-spacing:6px;font-weight:700;margin:14px 0 4px"></div>
     <p style="color:var(--muted);font-size:12px">Expires in <span id="pairCountdown"></span>s · single use</p>
+    <p style="color:var(--muted);font-size:12px;text-align:left;margin:10px 0 0">💻 <b>Laptop?</b> Run:</p>
+    <code id="pairLaptop" style="display:block;text-align:left;font-size:11px;background:#0b1220;color:#cfe3ff;
+      padding:8px;border-radius:8px;word-break:break-all;user-select:all"></code>
     <button class="ghost" style="width:100%;margin-top:6px" onclick="closePair()">Done</button>
   </div>
 </div>
@@ -100,6 +103,7 @@
   <div class="col">
     <h2>Devices</h2>
     <button class="primary" style="width:100%;margin-bottom:8px" onclick="pairNew()">➕ Pair a device</button>
+    <a href="/pwa/find.html" style="text-decoration:none"><button class="ghost" style="width:100%;margin-bottom:8px">📍 Find my devices (distance · ring · directions)</button></a>
     <div id="devices"></div>
     <h2>Places <span id="placesHint" style="text-transform:none;color:var(--muted)"></span></h2>
     <div id="places"></div>
@@ -184,6 +188,8 @@ function renderControl(){
   if(!selected){ el.innerHTML='<p class="hint">Select a device to control it.</p>'; return; }
   const name=(STATE.devices.find(x=>x.id===selected)||{}).name||selected;
   el.innerHTML=`<p class="hint">Controlling <b>${esc(name)}</b> (silent phone acts on next poll, ~5s):</p>
+    <div class="row"><button class="ghost" onclick="sendCmd('ring')">🔔 Ring it</button>
+      <button class="ghost" onclick="sendCmd('ring_stop')">🔕 Stop ringing</button></div>
     <div class="row"><button class="ghost" onclick="sendCmd('snap')">📸 Snapshot</button>
       <button class="ghost" onclick="sendCmd('ping_now')">📍 Locate now</button></div>
     <div class="row"><button class="ghost" onclick="sendCmd('live_on')">🎥 Live frames ON</button>
@@ -209,6 +215,8 @@ async function pairNew(){
     colorDark:"#000000",colorLight:"#ffffff"});
   document.getElementById("pairCode").textContent=code;
   document.getElementById("pairUrl").textContent=(d.server||location.origin).replace(/^https?:\/\//,"");
+  document.getElementById("pairLaptop").textContent=
+    `python3 laptop/guardian_agent.py pair --server ${d.server||location.origin} --code ${code}`;
   const ttl=d.ttl;
   document.getElementById("pairModal").style.display="flex";
   let left=ttl; const cd=document.getElementById("pairCountdown"); cd.textContent=left;
@@ -269,30 +277,30 @@ function renderDevices(){
   const el=document.getElementById("devices"); el.innerHTML="";
   if(!STATE.devices.length){ el.innerHTML='<p class="hint">No devices yet. Open the phone app and start tracking.</p>'; return; }
   STATE.devices.forEach(d=>{
-    const lp=d.last_ping||{};
+    const lp=d.last_ping||{}, fx=d.last_fix||{};
     const online = (STATE.now - (d.last_seen||0)) < (STATE.offline_timeout||90);
     const bat = lp.battery!=null ? Math.round(lp.battery)+"%" : "—";
     const spd = lp.speed!=null ? (lp.speed*3.6).toFixed(1)+" km/h" : "—";
     const c=document.createElement("div");
     c.className="card"+(selected===d.id?" sel":"");
-    c.innerHTML=`<div class="dev-name"><span class="dot ${online?'on':'off'}"></span>${esc(d.name||d.id)}
+    c.innerHTML=`<div class="dev-name"><span class="dot ${online?'on':'off'}"></span>${d.kind==="laptop"?"💻":"📱"} ${esc(d.name||d.id)}
         ${d.revoked?'<span class="pill" style="color:var(--crit);border-color:var(--crit)">revoked</span>':''}</div>
       <div class="meta">
         <span class="pill">🔋 ${bat}</span><span class="pill">🏃 ${spd}</span><br>
         last signal ${fmtAgo(d.last_seen)}
-        ${lp.lat!=null?`<br>${lp.lat.toFixed(5)}, ${lp.lon.toFixed(5)} (±${Math.round(lp.accuracy||0)}m)`:""}
+        ${fx.lat!=null?`<br>${fx.lat.toFixed(5)}, ${fx.lon.toFixed(5)} (±${Math.round(fx.accuracy||0)}m${fx.extra&&fx.extra.source==="ip"?", IP-based":""}) · fix ${fmtAgo(fx.ts)}`:""}
         <br><button class="ghost" style="padding:2px 8px;margin-top:5px"
             onclick="event.stopPropagation(); toggleRevoke('${d.id}', ${d.revoked?0:1})">
             ${d.revoked?'✓ Restore access':'⛔ Revoke'}</button>
       </div>`;
     c.onclick=()=>selectDevice(d.id);
     el.appendChild(c);
-    if(lp.lat!=null) placeMarker(d, online);
+    if(fx.lat!=null) placeMarker(d, online);
   });
 }
 
 function placeMarker(d, online){
-  const lp=d.last_ping; const ll=[lp.lat,lp.lon];
+  const fx=d.last_fix; const ll=[fx.lat,fx.lon];
   if(markers[d.id]){ markers[d.id].setLatLng(ll); }
   else{
     markers[d.id]=L.marker(ll).addTo(map).on("click",()=>selectDevice(d.id));

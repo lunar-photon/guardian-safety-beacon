@@ -11,264 +11,619 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- gradient header -->
+        <!-- Weather Header Gradient -->
         <LinearLayout
+            android:id="@+id/weatherHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/header_gradient"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp"
-            android:paddingTop="44dp"
-            android:paddingBottom="30dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="36dp"
+            android:paddingBottom="24dp">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <!-- Top bar -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="🛡️ Guardian"
-                android:textColor="#FFFFFF"
-                android:textSize="28sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
+                <LinearLayout
+                    android:id="@+id/weatherLocationBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/weatherCity"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📍 Current Location"
+                        android:textColor="#FFFFFF"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/weatherSub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Live Local Forecast"
+                        android:textColor="#E0F2FE"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/weatherRefreshBtn"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    app:tint="#FFFFFF"
+                    android:contentDescription="Refresh weather" />
+
+                <ImageButton
+                    android:id="@+id/weatherSettingsBtn"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_manage"
+                    app:tint="#FFFFFF"
+                    android:contentDescription="Station settings" />
+            </LinearLayout>
+
+            <!-- Weather Hero Card -->
+            <LinearLayout
+                android:id="@+id/weatherCard"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Your personal safety beacon"
-                android:textColor="#E9E6FF"
-                android:textSize="14sp"
-                android:paddingTop="2dp" />
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingTop="18dp"
+                android:paddingBottom="10dp">
+
+                <TextView
+                    android:id="@+id/weatherIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⛅"
+                    android:textSize="64sp" />
+
+                <TextView
+                    android:id="@+id/weatherTemp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="27°"
+                    android:textColor="#FFFFFF"
+                    android:textSize="72sp"
+                    android:fontFamily="sans-serif-light" />
+
+                <TextView
+                    android:id="@+id/weatherCondition"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Partly Cloudy"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/weatherHighLow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="High: 31° · Low: 21°"
+                    android:textColor="#E0F2FE"
+                    android:textSize="14sp"
+                    android:paddingTop="2dp" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="16dp">
 
-            <!-- status card -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="22dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/surface"
-                android:layout_marginBottom="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <View
-                            android:id="@+id/statusDot"
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:background="@drawable/status_dot"
-                            android:layout_marginEnd="10dp" />
-
-                        <TextView
-                            android:id="@+id/status"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Not tracking"
-                            android:textColor="@color/textPrimary"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/pairState"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Not paired yet — scan a QR from the dashboard"
-                        android:textColor="@color/textMuted"
-                        android:textSize="13sp"
-                        android:paddingTop="8dp" />
-
-                    <TextView
-                        android:id="@+id/permStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Permissions: needed"
-                        android:textColor="@color/textMuted"
-                        android:textSize="13sp"
-                        android:paddingTop="3dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- device name -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="This device's name"
-                app:boxCornerRadiusTopStart="14dp"
-                app:boxCornerRadiusTopEnd="14dp"
-                app:boxCornerRadiusBottomStart="14dp"
-                app:boxCornerRadiusBottomEnd="14dp"
-                android:layout_marginBottom="12dp">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/name"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPersonName" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- primary CTA: scan QR -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/scanBtn"
-                android:layout_width="match_parent"
-                android:layout_height="58dp"
-                android:text="Scan QR to pair"
-                android:textSize="16sp"
-                android:textAllCaps="false"
-                app:icon="@drawable/ic_scan"
-                app:iconGravity="textStart"
-                app:cornerRadius="16dp" />
-
-            <!-- start / stop -->
+            <!-- Weather Details Grid -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="12dp">
+                android:layout_marginBottom="12dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/start"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginEnd="6dp"
-                    android:text="Start"
-                    android:textAllCaps="false"
-                    app:cornerRadius="14dp" />
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="💧 HUMIDITY"
+                            android:textColor="@color/textMuted"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/weatherHumidity"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="62%"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:paddingTop="4dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/stop"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="6dp"
-                    android:text="Stop"
-                    android:textAllCaps="false"
-                    app:cornerRadius="14dp" />
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="💨 WIND SPEED"
+                            android:textColor="@color/textMuted"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/weatherWind"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="14 km/h"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:paddingTop="4dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
-            <!-- SOS -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/sos"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="🚨  SOS"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textAllCaps="false"
-                app:backgroundTint="@color/danger"
-                app:cornerRadius="16dp"
-                android:layout_marginTop="12dp" />
-
-            <!-- setup helpers -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/grant"
-                style="@style/Widget.Material3.Button.TextButton"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Grant permissions"
-                android:textAllCaps="false"
-                android:layout_marginTop="10dp" />
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/battery"
-                style="@style/Widget.Material3.Button.TextButton"
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🌡️ FEELS LIKE"
+                            android:textColor="@color/textMuted"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/weatherFeels"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="29°"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:paddingTop="4dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🧭 PRESSURE"
+                            android:textColor="@color/textMuted"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/weatherPressure"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1013 hPa"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:paddingTop="4dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- 5-Day Forecast Card -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Allow unrestricted battery (for background)"
-                android:textAllCaps="false" />
-
-            <!-- advanced manual setup -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Advanced — manual setup"
-                android:textColor="@color/textMuted"
-                android:textSize="12sp"
-                android:textAllCaps="true"
-                android:letterSpacing="0.05"
-                android:paddingTop="18dp"
-                android:paddingBottom="8dp" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Server URL"
-                android:layout_marginBottom="10dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/server"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textUri" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📅 5-DAY OUTLOOK"
+                        android:textColor="@color/textMuted"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Today · ⛅ Partly Cloudy · 21° / 31°"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="14sp"
+                        android:paddingVertical="4dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Tomorrow · ☀️ Sunny · 22° / 32°"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="14sp"
+                        android:paddingVertical="4dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Friday · 🌦️ Passing Showers · 20° / 29°"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="14sp"
+                        android:paddingVertical="4dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Saturday · ⛅ Clear Intervals · 21° / 30°"
+                        android:textColor="@color/textPrimary"
+                        android:textSize="14sp"
+                        android:paddingVertical="4dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            <!-- SECRET BEACON & SECURITY PANEL (Toggled via triple-tap or settings button) -->
+            <LinearLayout
+                android:id="@+id/beaconPanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Pairing code"
-                android:layout_marginBottom="10dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/code"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- Header for Beacon Panel -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️ Safety Beacon &amp; Console"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- status card -->
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textCapCharacters" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="@color/surface"
+                    android:layout_marginBottom="14dp">
 
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Token (advanced)"
-                android:layout_marginBottom="10dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/token"
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <View
+                                android:id="@+id/statusDot"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:background="@drawable/status_dot"
+                                android:layout_marginEnd="10dp" />
+
+                            <TextView
+                                android:id="@+id/status"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Not tracking"
+                                android:textColor="@color/textPrimary"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/pairState"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Not paired yet — scan a QR from the dashboard"
+                            android:textColor="@color/textMuted"
+                            android:textSize="13sp"
+                            android:paddingTop="6dp" />
+
+                        <TextView
+                            android:id="@+id/permStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Permissions: needed"
+                            android:textColor="@color/textMuted"
+                            android:textSize="13sp"
+                            android:paddingTop="2dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- SOS button -->
+                <Button
+                    android:id="@+id/sos"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:text="🚨 SOS Emergency Alert"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    app:backgroundTint="@color/danger"
+                    app:cornerRadius="16dp"
+                    android:paddingVertical="14dp"
+                    android:layout_marginBottom="12dp" />
 
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Ping interval (seconds)"
-                android:layout_marginBottom="12dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/interval"
+                <!-- Start / Stop row -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="number" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/save"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save / pair with code"
-                android:textAllCaps="false"
-                app:cornerRadius="14dp"
-                android:layout_marginBottom="20dp" />
+                    <Button
+                        android:id="@+id/start"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Start"
+                        android:textSize="15sp"
+                        android:textColor="#FFFFFF"
+                        app:backgroundTint="@color/brand"
+                        app:cornerRadius="14dp"
+                        android:paddingVertical="12dp"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/stop"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Stop"
+                        android:textSize="15sp"
+                        android:textColor="@color/textPrimary"
+                        app:cornerRadius="14dp"
+                        android:paddingVertical="12dp"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <!-- Find devices -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface"
+                    android:layout_marginBottom="12dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📍 Find My Devices"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Locate and ring your laptop and other devices."
+                            android:textColor="@color/textMuted"
+                            android:textSize="12.5sp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="10dp" />
+                        <Button
+                            android:id="@+id/findBtn"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Open Device Map"
+                            app:cornerRadius="12dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- permissions and battery -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="14dp">
+
+                    <Button
+                        android:id="@+id/grant"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Permissions"
+                        android:textSize="13sp"
+                        app:cornerRadius="12dp"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/battery"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Battery Mode"
+                        android:textSize="13sp"
+                        app:cornerRadius="12dp"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <!-- Pair and Config Section -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="1dp"
+                    app:cardBackgroundColor="@color/surface"
+                    android:layout_marginBottom="24dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Pairing &amp; Server Setup"
+                            android:textColor="@color/textPrimary"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="10dp" />
+
+                        <Button
+                            android:id="@+id/scanBtn"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Scan Dashboard QR Code"
+                            app:icon="@drawable/ic_scan"
+                            app:iconGravity="textStart"
+                            app:cornerRadius="12dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Pairing code (or scan above)"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="10dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/code"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textCapCharacters" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Device name"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="10dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/name"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPersonName" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Server URL"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="10dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/server"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textUri" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Token (if not using pairing code)"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="10dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/token"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPassword" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Ping interval (seconds)"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_marginBottom="14dp">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/interval"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <Button
+                            android:id="@+id/save"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Save &amp; Connect"
+                            app:backgroundTint="@color/brand"
+                            app:cornerRadius="12dp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

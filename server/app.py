@@ -63,6 +63,8 @@ HELPLINES = [
     {"label": "Women / Domestic (181)", "number": "181"},
 ]
 
+DEVICE_KINDS = {"phone", "laptop"}
+
 app = FastAPI(title="Guardian")
 
 
@@ -234,12 +236,25 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     ts = float(body.get("ts") or time.time())
     lat = body.get("lat")
     lon = body.get("lon")
+    accuracy = body.get("accuracy")
+    extra = body.get("extra")
+
+    # No GPS (laptops) or only a coarse IP guess? Try the personal WiFi map first.
+    wifi = body.get("wifi") or []
+    coarse = lat is None or (isinstance(extra, dict) and extra.get("source") == "ip")
+    if coarse and wifi:
+        fix = db.locate_from_wifi([w.get("bssid") for w in wifi], device_id)
+        if fix:
+            lat, lon, accuracy = fix["lat"], fix["lon"], fix["accuracy"]
+            extra = dict(extra or {}, source="learned-wifi")
 
     db.touch_device(device_id, name)
+    if body.get("kind") in DEVICE_KINDS:
+        db.set_device_kind(device_id, body["kind"])
     db.add_ping(
         device_id, ts, lat, lon,
-        body.get("accuracy"), body.get("speed"), body.get("heading"),
-        body.get("battery"), body.get("extra"), body.get("wifi"),
+        accuracy, body.get("speed"), body.get("heading"),
+        body.get("battery"), extra, wifi,
     )
 
     if lat is not None and lon is not None:
@@ -247,10 +262,12 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
         check_places(device_id, lat, lon)
 
     hub.broadcast({"kind": "ping", "device_id": device_id, "ping": {
-        "ts": ts, "lat": lat, "lon": lon, "accuracy": body.get("accuracy"),
+        "ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
         "speed": body.get("speed"), "battery": body.get("battery"),
-        "name": name, "wifi": body.get("wifi") or []}})
-    return {"ok": True}
+        "name": name, "wifi": wifi}})
+    return {"ok": True, "fix": {"lat": lat, "lon": lon, "accuracy": accuracy,
+                                "source": (extra or {}).get("source") if isinstance(extra, dict) else None}
+            if lat is not None else None}
 
 
 @app.post("/api/trigger")
@@ -296,6 +313,7 @@ def api_state(request: Request, _=Depends(require_token)):
     devices = db.list_devices()
     for d in devices:
         d["last_ping"] = db.last_ping(d["id"])
+        d["last_fix"] = db.last_fix(d["id"])
         d["wifi"] = db.last_wifi(d["id"])
     return {
         "devices": devices,
@@ -422,6 +440,64 @@ def api_commands(request: Request, who: Principal = Depends(require_principal)):
 
 
 # ----------------------------------------------------------------------------
+# find my devices: every paired device (phone, laptop) can see where the others
+# are and make them ring. Device tokens get locations + a small set of harmless
+# commands only — never camera, SOS, events or frames (those stay admin-only).
+# ----------------------------------------------------------------------------
+PEER_COMMANDS = {"ring", "ring_stop", "ping_now"}
+
+
+@app.get("/api/peers")
+def api_peers(request: Request, who: Principal = Depends(require_principal)):
+    try:
+        trail = min(max(int(request.query_params.get("trail", "0")), 0), 200)
+    except ValueError:
+        trail = 0
+    now = time.time()
+    peers = []
+    for d in db.list_devices():
+        if d.get("revoked"):
+            continue
+        lp = db.last_ping(d["id"]) or {}
+        peer = {
+            "id": d["id"],
+            "name": d["name"],
+            "kind": d.get("kind") or "phone",
+            "self": d["id"] == who.device_id,
+            "last_seen": d["last_seen"],
+            "online": (now - (d["last_seen"] or 0)) < OFFLINE_TIMEOUT,
+            "battery": lp.get("battery"),
+            "fix": db.last_fix(d["id"]),
+        }
+        if trail:
+            peer["trail"] = [[p["lat"], p["lon"]] for p in db.track(d["id"], trail)
+                             if p["lat"] is not None]
+        peers.append(peer)
+    return {"me": who.device_id, "now": now, "offline_timeout": OFFLINE_TIMEOUT, "peers": peers}
+
+
+@app.post("/api/peers/{device_id}/command")
+async def api_peer_command(device_id: str, request: Request,
+                           who: Principal = Depends(require_principal)):
+    b = await request.json()
+    cmd = b.get("cmd")
+    if cmd not in PEER_COMMANDS:
+        raise HTTPException(400, f"cmd must be one of {sorted(PEER_COMMANDS)}")
+    target = next((d for d in db.list_devices() if d["id"] == device_id), None)
+    if not target or target.get("revoked"):
+        raise HTTPException(404, "no such device")
+    sender = "dashboard"
+    if who.device_id:
+        me = next((d for d in db.list_devices() if d["id"] == who.device_id), None)
+        sender = (me or {}).get("name") or who.device_id
+    _commands.setdefault(device_id, []).append({"cmd": cmd, "args": {"from": sender}})
+    ev = db.add_event(device_id, "command", "info",
+                      f"{sender} sent {cmd} to {target['name']}", {"cmd": cmd, "from": sender})
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True}
+
+
+# ----------------------------------------------------------------------------
 # pairing: the dashboard issues a short-lived code; the phone claims it to get
 # the token. A phone can't join by guessing the server URL alone.
 # ----------------------------------------------------------------------------
@@ -460,8 +536,9 @@ async def api_pair_claim(request: Request):
     entry["used"] = True
     device_id = "dev-" + secrets.token_hex(4)
     name = (b.get("name") or "paired phone").strip()
+    kind = b.get("kind") if b.get("kind") in DEVICE_KINDS else None
     dev_token = secrets.token_urlsafe(24)            # unique per-device token
-    db.create_paired_device(device_id, name, dev_token)
+    db.create_paired_device(device_id, name, dev_token, kind)
     ev = db.add_event(device_id, "pair", "info", f"Paired new device: {name}", None)
     hub.broadcast({"kind": "event", "event": ev})
     return {"ok": True, "token": dev_token, "device_id": device_id, "name": name}

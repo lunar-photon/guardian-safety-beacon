@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5B5BD6">
+<title>Find my devices</title>
+<link rel="icon" href="/pwa/icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root{--brand:#5B5BD6;--brand2:#8E7BFF;--bg:#F4F5FB;--surface:#FFFFFF;
+    --txt:#15162B;--muted:#6B7280;--stroke:#E7E8F0}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;
+    padding:14px 18px;display:flex;align-items:center;gap:10px}
+  header h1{margin:0;font-size:19px;font-weight:800}
+  header a{margin-left:auto;color:#E9E6FF;font-size:13px;font-weight:600;text-decoration:none}
+  .msg{max-width:480px;margin:40px auto;padding:0 18px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<header><h1>📍 Find my devices</h1><a href="/" id="back">Dashboard</a></header>
+<div id="root"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/pwa/find.js"></script>
+<script>
+  // Credentials, in order: link from the Android app (#t=…&s=…, kept out of server
+  // logs because it's a fragment), the phone web app, then the dashboard login.
+  const ls=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+  const h=new URLSearchParams(location.hash.slice(1));
+  if(h.get("t")){
+    try{ localStorage.setItem("f_token",h.get("t")); localStorage.setItem("f_server",h.get("s")||location.origin); }catch(e){}
+    history.replaceState(null,"",location.pathname);
+  }
+  const token = h.get("t") || ls("f_token") || ls("g_token") || ls("guardian_token");
+  const server = h.get("s") || ls("f_server") || ls("g_server") || location.origin;
+  if(ls("g_token") && !ls("guardian_token")){ const b=document.getElementById("back"); b.href="/pwa/"; b.textContent="Back"; }
+  if(token) GuardianFind.mount(document.getElementById("root"),{server,token});
+  else document.getElementById("root").innerHTML=
+    '<p class="msg">Not signed in. Open this page from the Guardian phone app, or log in to the '+
+    '<a href="/">dashboard</a> on this browser first.</p>';
+</script>
+</body>
+</html>

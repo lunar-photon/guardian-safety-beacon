@@ -1,13 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B5BD6"/>
-      <stop offset="1" stop-color="#8E7BFF"/>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
     </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0369A1" flood-opacity="0.25"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="110" fill="url(#g)"/>
-  <path d="M256 96l120 44v96c0 86-52 150-120 180-68-30-120-94-120-180v-96z"
-        fill="#ffffff" fill-opacity="0.95"/>
-  <path d="M224 262l24 26 44-52" fill="none" stroke="#5B5BD6"
-        stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <!-- Sun -->
+  <circle cx="330" cy="190" r="76" fill="url(#sun)" filter="url(#shadow)"/>
+  <!-- Cloud -->
+  <path d="M190 380 h170 a60 60 0 0 0 10 -119 a72 72 0 0 0 -130 -30 a54 54 0 0 0 -50 49 a50 50 0 0 0 0 100 z"
+        fill="url(#cloud)" filter="url(#shadow)"/>
 </svg>

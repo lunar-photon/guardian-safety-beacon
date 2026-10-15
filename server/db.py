@@ -1,6 +1,7 @@
 """SQLite storage for the safety server. Pure stdlib, no ORM."""
 import sqlite3
 import json
+import math
 import time
 import threading
 from pathlib import Path
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS devices (
     watch      INTEGER DEFAULT 1,     -- 1 = watchdog armed (alert if it goes silent)
     online     INTEGER DEFAULT 0,
     token      TEXT,                  -- per-device token (null for legacy/admin-created)
-    revoked    INTEGER DEFAULT 0      -- 1 = token disabled; device can't post
+    revoked    INTEGER DEFAULT 0,     -- 1 = token disabled; device can't post
+    kind       TEXT                   -- phone | laptop (null = unknown, shown as phone)
 );
 CREATE TABLE IF NOT EXISTS pings (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,6 +61,7 @@ CREATE TABLE IF NOT EXISTS wifi (
     bssid     TEXT,
     rssi      INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_wifi_bssid ON wifi(bssid);
 CREATE TABLE IF NOT EXISTS events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id TEXT,
@@ -108,6 +111,8 @@ def init():
         c.execute("ALTER TABLE devices ADD COLUMN token TEXT")
     if "revoked" not in cols:
         c.execute("ALTER TABLE devices ADD COLUMN revoked INTEGER DEFAULT 0")
+    if "kind" not in cols:
+        c.execute("ALTER TABLE devices ADD COLUMN kind TEXT")
     c.commit()
 
 
@@ -121,14 +126,20 @@ def device_by_token(token):
     return dict(r) if r else None
 
 
-def create_paired_device(device_id, name, token):
+def create_paired_device(device_id, name, token, kind=None):
     c = _conn()
     now = time.time()
     c.execute(
-        "INSERT INTO devices(id,name,first_seen,last_seen,watch,online,token,revoked) "
-        "VALUES(?,?,?,?,1,0,?,0)",
-        (device_id, name, now, now, token),
+        "INSERT INTO devices(id,name,first_seen,last_seen,watch,online,token,revoked,kind) "
+        "VALUES(?,?,?,?,1,0,?,0,?)",
+        (device_id, name, now, now, token, kind),
     )
+    c.commit()
+
+
+def set_device_kind(device_id, kind):
+    c = _conn()
+    c.execute("UPDATE devices SET kind=? WHERE id=?", (kind, device_id))
     c.commit()
 
 
@@ -168,7 +179,8 @@ def add_ping(device_id, ts, lat, lon, accuracy, speed, heading, battery, extra, 
     for w in (wifi_list or []):
         c.execute(
             "INSERT INTO wifi(ping_id,device_id,ts,ssid,bssid,rssi) VALUES(?,?,?,?,?,?)",
-            (ping_id, device_id, ts, w.get("ssid"), w.get("bssid"), w.get("rssi")),
+            (ping_id, device_id, ts, w.get("ssid"), (w.get("bssid") or "").lower() or None,
+             w.get("rssi")),
         )
     c.commit()
     return ping_id
@@ -319,6 +331,48 @@ def last_ping(device_id):
         "SELECT * FROM pings WHERE device_id=? ORDER BY ts DESC LIMIT 1", (device_id,)
     ).fetchone()
     return dict(r) if r else None
+
+
+def last_fix(device_id):
+    """Most recent ping that actually had a position (a ping can be battery-only)."""
+    r = _conn().execute(
+        "SELECT ts,lat,lon,accuracy,speed,heading,extra FROM pings "
+        "WHERE device_id=? AND lat IS NOT NULL ORDER BY ts DESC LIMIT 1", (device_id,)
+    ).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    try:
+        d["extra"] = json.loads(d["extra"]) if d["extra"] else None
+    except Exception:
+        d["extra"] = None
+    return d
+
+
+def locate_from_wifi(bssids, exclude_device, max_age_s=60 * 86400):
+    """Personal WiFi map: estimate a position from access points that *other* devices
+    (phones with GPS) have seen while they had a good fix. Returns {lat,lon,accuracy}
+    or None. Lets a laptop with no GPS borrow the phone's history of where it's been."""
+    bssids = [b.lower() for b in bssids if b][:20]
+    if not bssids:
+        return None
+    rows = _conn().execute(
+        f"SELECT w.bssid, w.rssi, p.lat, p.lon FROM wifi w JOIN pings p ON p.id = w.ping_id "
+        f"WHERE w.bssid IN ({','.join('?' * len(bssids))}) AND w.device_id != ? "
+        f"AND p.lat IS NOT NULL AND COALESCE(p.accuracy, 999) <= 60 AND w.ts > ? "
+        f"ORDER BY w.ts DESC LIMIT 600",
+        (*bssids, exclude_device, time.time() - max_age_s)).fetchall()
+    if len(rows) < 2:
+        return None
+    # weight each sighting by how strongly the phone heard that AP (closer = stronger)
+    ws = [max(1.0, (r["rssi"] if r["rssi"] is not None else -90) + 100.0) for r in rows]
+    tot = sum(ws)
+    lat = sum(w * r["lat"] for w, r in zip(ws, rows)) / tot
+    lon = sum(w * r["lon"] for w, r in zip(ws, rows)) / tot
+    deg_m = 111000.0
+    spread = (sum(w * (((r["lat"] - lat) * deg_m) ** 2 + ((r["lon"] - lon) * deg_m *
+              math.cos(math.radians(lat))) ** 2) for w, r in zip(ws, rows)) / tot) ** 0.5
+    return {"lat": lat, "lon": lon, "accuracy": round(min(max(spread, 25.0), 500.0))}
 
 
 def track(device_id, limit=200):

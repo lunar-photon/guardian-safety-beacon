@@ -3,11 +3,18 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- a plain "notes" sheet, low-profile -->
+    <!-- Sun -->
     <path
-        android:fillColor="#E6EDF3"
-        android:pathData="M38,30h32a4,4 0 0 1 4,4v40a4,4 0 0 1 -4,4h-32a4,4 0 0 1 -4,-4v-40a4,4 0 0 1 4,-4z" />
-    <path android:fillColor="#8B98A5" android:pathData="M42,42h24v3h-24z" />
-    <path android:fillColor="#8B98A5" android:pathData="M42,50h24v3h-24z" />
-    <path android:fillColor="#8B98A5" android:pathData="M42,58h16v3h-16z" />
+        android:fillColor="#FBBF24"
+        android:pathData="M68,44m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" />
+    <!-- Sun rays -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M68,22v4 M68,62v4 M46,44h4 M86,44h4 M52.5,28.5l2.8,2.8 M80.7,56.7l2.8,2.8 M52.5,59.5l2.8,-2.8 M80.7,31.3l2.8,-2.8" />
+    <!-- Soft cloud -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,76h36a14,14 0 0,0 2,-27.8a18,18 0 0,0 -33.5,-6.2a13,13 0 0,0 -12.5,12a12,12 0 0,0 8,22z" />
 </vector>

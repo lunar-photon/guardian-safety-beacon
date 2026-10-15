@@ -4,10 +4,7 @@ A replacement for closed "Find My"-style apps, built for personal safety in Indi
 
 The design is two halves:
 
-- **The phone is a silent beacon.** After a one-time setup it shows only a decoy
-  **Notes** screen and does nothing visible. Underneath it continuously broadcasts
-  GPS, battery and (on request) webcam frames to your server. There are no safety
-  buttons on the phone for an attacker to find and disable.
+- The phone is a silent beacon disguised as a Weather app. After a one-time setup it displays a fully-functional local weather and forecast interface, legitimately justifying continuous location access. Underneath it continuously broadcasts GPS, battery, and (on request) webcam frames to your server. Emergency controls and beacon settings are accessible via a discrete gesture.
 - **The server is the console.** A trusted watcher opens the dashboard on a laptop
   or phone and sees everything live — map, trail, timeline, webcam — and holds all
   the **"reach help"** options: call the helplines, snapshot or start live video on
@@ -52,14 +49,11 @@ Use the printed **https** URL on the phone (HTTPS is required for GPS + camera).
 
 ## 2. Phone — PWA (silent beacon)
 
-1. Open the **ngrok https URL + `/pwa/`** on the phone.
-2. First run shows a short setup: **Server URL**, **token**, **device name**.
-   Optionally tap **Set Home / Set Office** here so arrivals get logged.
-3. Tap **Save & go silent** → the phone switches to a plain **Notes** screen (it's a
-   real, working notepad) and broadcasts in the background.
-4. To get settings back later: **triple-tap the word "Notes"** at the top.
-
-Keep the page open and "screen awake" for best results; for always-on, use Android.
+1. Open the ngrok https URL + `/pwa/` on the phone.
+2. First run shows a quick setup: Server URL, token, device name (or pair by code / QR).
+3. Tap Save & Connect. The phone switches to an authentic Weather forecast screen showing live temperatures, hourly forecasts, and local metrics.
+4. Underneath, it continuously broadcasts location and obeys remote commands.
+5. To open beacon controls or emergency SOS later: triple-tap the location title / temperature or tap the gear icon in the top bar.
 
 ---
 
@@ -131,6 +125,55 @@ it's worded as a routine "System / Sync active" and can't be removed (OS rule).
 
 ---
 
+## 6. Find my devices — phone ↔ laptop (both ways)
+
+Every paired device can see where the others are, how far away and in which
+direction, and can **ring** them. The phone finds the laptop; the laptop finds the phone.
+
+| Where | How to open it |
+|---|---|
+| Phone (web app) | The **📍 Find my devices** card on the main screen |
+| Phone (Android app) | **📍 Find my devices** button → opens the map in your browser |
+| Laptop | Dashboard → **📍 Find my devices**, or `http://localhost:8000/pwa/find.html` |
+
+Per device: live map pin + accuracy circle, online / last seen, battery, distance +
+compass arrow, **🔔 Ring** (loud even on silent — Android uses the alarm stream; the laptop
+unmutes and goes to full volume, then restores it), **📍 Locate** (fresh fix now), **🧭 Go**
+(Google Maps directions). If the server is unreachable, the map shows the **last known
+positions** it cached.
+
+### Laptop beacon (`laptop/guardian_agent.py`)
+
+Laptops have no GPS. The agent (pure Python stdlib, Linux + NetworkManager) reports
+position + battery every 60 s and obeys Ring / Locate:
+
+```bash
+# Dashboard → "Pair a device" shows this exact command with your code filled in
+python3 laptop/guardian_agent.py pair --server http://<laptop-ip>:8000 --code ABC123
+python3 laptop/guardian_agent.py locate     # test: where does it think it is?
+python3 laptop/guardian_agent.py install    # run at every login (systemd user service)
+```
+
+Where the laptop's position comes from, best first:
+
+1. **Your personal WiFi map** (server-side, nothing leaves your server). Your Android
+   phone uploads the WiFi networks it sees with each GPS fix, so when the laptop sees the
+   same networks, the server places it there (~25–100 m). This works anywhere your
+   phone has been with the Android app running: home, office, college.
+2. **beaconDB** (`api.beacondb.net`), a free crowdsourced WiFi database. Coverage in
+   India is thin, so it often has no answer.
+3. **IP geolocation** (`ipinfo.io`), city-level only (~10 km), shown as *"Approximate"*.
+
+Steps 2–3 send nearby WiFi MACs / your IP to those services. Use `--source ip` or
+`--source none` to limit that.
+
+**Limit:** the server runs *on* the laptop by default, so if the laptop is off or offline,
+nothing can reach it. The phone will still show the laptop's last known position. To
+track a lost laptop properly, run the server on an always-on machine (a VPS, a Raspberry Pi)
+and point the agent at it.
+
+---
+
 ## Helplines wired in (India)
 
 | Number | Line |
@@ -158,8 +201,10 @@ server/
   db.py                 SQLite storage
   run.sh                venv bootstrap + launch
   static/dashboard.html live console (map, timeline, control, help, places)
-  pwa/                  silent-beacon phone app (decoy Notes UI)
+  pwa/                  silent-beacon phone app (decoy Weather UI)
+  pwa/find.html, find.js   "Find my devices" two-way map (also embedded in the phone app)
   tools/ingest_hotspots.py   import unsafe-area CSV -> danger zones
   data_sources/        where to get India hotspot data (+ sample CSV)
 android/               Kotlin/Gradle silent-beacon app (service, GPS, WiFi, commands)
+laptop/guardian_agent.py   laptop beacon: WiFi/IP location, battery, ring (stdlib only)
 ```

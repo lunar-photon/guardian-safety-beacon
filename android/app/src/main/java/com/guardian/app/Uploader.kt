@@ -38,6 +38,7 @@ class Uploader(private val prefs: Prefs) {
         battery: Int?, wifi: List<WifiAp>
     ): Boolean {
         val o = base()
+        o.put("kind", "phone")
         lat?.let { o.put("lat", it) }
         lon?.let { o.put("lon", it) }
         acc?.let { o.put("accuracy", it) }
@@ -72,7 +73,7 @@ class Uploader(private val prefs: Prefs) {
      *  Returns true and stores token + server-assigned device id on success. */
     fun claim(code: String, name: String): Boolean {
         val body = JSONObject().apply {
-            put("code", code.trim().uppercase()); put("name", name)
+            put("code", code.trim().uppercase()); put("name", name); put("kind", "phone")
         }
         val req = Request.Builder()
             .url(prefs.server + "/api/pair/claim")       // no auth header for claim

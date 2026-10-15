@@ -1,7 +1,8 @@
 /* Minimal service worker: makes the app installable and caches the shell so it
    opens even on a flaky connection. Live pings go straight to the network. */
-const CACHE = "guardian-v1";
-const SHELL = ["/pwa/", "/pwa/app.js", "/pwa/manifest.webmanifest", "/pwa/icon.svg"];
+const CACHE = "weather-v1";
+const SHELL = ["/pwa/", "/pwa/app.js", "/pwa/find.js", "/pwa/find.html",
+               "/pwa/manifest.webmanifest", "/pwa/icon.svg"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
