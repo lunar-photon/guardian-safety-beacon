@@ -1,0 +1,25 @@
+# --- runtime / private data (NEVER commit: contains location logs + webcam frames) ---
+server/data/
+
+# --- python ---
+server/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# --- android build ---
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+*.keystore
+*.jks
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/

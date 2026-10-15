@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guardian — Live Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
+    --txt:#e6edf3; --muted:#8b98a5; --accent:#4f9dff; --crit:#ff4d4f;
+    --warn:#ffb020; --ok:#39d98a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--txt)}
+  #gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);z-index:9999}
+  #gate .box{background:var(--panel);padding:28px;border-radius:14px;border:1px solid var(--line);
+    width:min(92vw,380px)}
+  #gate h1{margin:0 0 6px;font-size:20px}
+  #gate p{color:var(--muted);margin:0 0 16px;font-size:13px}
+  input,button,select{font:inherit}
+  input,select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:8px;padding:9px 11px;width:100%}
+  button{background:var(--accent);border:0;color:#06121f;font-weight:600;border-radius:8px;
+    padding:9px 13px;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);font-weight:500}
+  button.danger{background:var(--crit);color:#fff;width:100%;margin-top:7px}
+  button.danger{background:var(--crit);color:#fff}
+  .layout{display:grid;grid-template-columns:330px 1fr 320px;height:100vh}
+  .col{overflow:auto;border-right:1px solid var(--line);padding:12px}
+  .col:last-child{border-right:0;border-left:1px solid var(--line)}
+  #map{height:100vh}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:18px 0 8px}
+  h2:first-child{margin-top:4px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px;
+    margin-bottom:9px;cursor:pointer}
+  .card.sel{border-color:var(--accent)}
+  .dev-name{font-weight:600;display:flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--muted)}
+  .dot.on{background:var(--ok)} .dot.off{background:var(--crit)}
+  .meta{color:var(--muted);font-size:12px;margin-top:4px;line-height:1.5}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    border-radius:20px;padding:1px 8px;font-size:11px;margin-right:4px}
+  .ev{border-left:3px solid var(--line);padding:7px 9px;margin-bottom:7px;background:var(--panel);
+    border-radius:0 8px 8px 0;font-size:13px}
+  .ev.critical{border-left-color:var(--crit)} .ev.warn{border-left-color:var(--warn)}
+  .ev.info{border-left-color:var(--accent)}
+  .ev .t{color:var(--muted);font-size:11px;margin-top:3px;display:flex;justify-content:space-between}
+  .ev .t button{padding:2px 7px;font-size:11px}
+  #alarm{position:fixed;top:0;left:0;right:0;background:var(--crit);color:#fff;padding:12px 16px;
+    font-weight:600;display:none;z-index:900;align-items:center;justify-content:space-between}
+  .frames{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .frames img{width:100%;border-radius:8px;border:1px solid var(--line);aspect-ratio:3/4;object-fit:cover}
+  .wifi{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;
+    padding:3px 0;border-bottom:1px solid var(--line)}
+  .row{display:flex;gap:7px;margin-top:7px}
+  .hint{color:var(--muted);font-size:12px;line-height:1.5}
+  a{color:var(--accent)}
+  @media(max-width:1000px){.layout{grid-template-columns:1fr;grid-template-rows:auto 60vh auto}
+    #map{height:60vh}.col{height:auto;max-height:40vh}}
+</style>
+</head>
+<body>
+<div id="gate">
+  <div class="box">
+    <h1>🛡️ Guardian</h1>
+    <p>Enter your server token to open the live dashboard.</p>
+    <input id="tok" type="password" placeholder="SAFETY_TOKEN" autocomplete="off">
+    <div class="row"><button id="tokGo" style="flex:1">Unlock</button></div>
+    <p id="tokErr" style="color:var(--crit);display:none;margin-top:10px">Wrong token.</p>
+  </div>
+</div>
+
+<div id="alarm">
+  <span id="alarmMsg">⚠️ ALERT</span>
+  <span>
+    <button class="ghost" onclick="stopAlarm()" style="color:#fff;border-color:#fff">Silence</button>
+  </span>
+</div>
+
+<div id="pairModal" style="display:none;position:fixed;inset:0;z-index:9998;
+  background:rgba(0,0,0,.7);align-items:center;justify-content:center">
+  <div class="box" style="background:var(--panel);padding:26px;border-radius:14px;
+    border:1px solid var(--line);width:min(92vw,360px);text-align:center">
+    <h1 style="margin:0 0 4px;font-size:18px">Pair a device</h1>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+      Scan this with the phone's camera, or open <b id="pairUrl"></b> and type the code.</p>
+    <div id="qr" style="display:flex;justify-content:center;background:#fff;padding:10px;border-radius:10px"></div>
+    <div id="pairCode" style="font-size:30px;letter-spacing:6px;font-weight:700;margin:14px 0 4px"></div>
+    <p style="color:var(--muted);font-size:12px">Expires in <span id="pairCountdown"></span>s · single use</p>
+    <button class="ghost" style="width:100%;margin-top:6px" onclick="closePair()">Done</button>
+  </div>
+</div>
+
+<div class="layout" style="display:none" id="main">
+  <div class="col">
+    <h2>Devices</h2>
+    <button class="primary" style="width:100%;margin-bottom:8px" onclick="pairNew()">➕ Pair a device</button>
+    <div id="devices"></div>
+    <h2>Places <span id="placesHint" style="text-transform:none;color:var(--muted)"></span></h2>
+    <div id="places"></div>
+    <div id="suggestions"></div>
+    <h2>WiFi near selected device</h2>
+    <div id="wifi"><p class="hint">Select a device.</p></div>
+    <h2>Geofences</h2>
+    <div id="fences"></div>
+    <p class="hint" style="margin-top:8px">Click the map, then fill the box to add a zone.</p>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="col">
+    <h2>Reach help</h2>
+    <div id="helpbar"><p class="hint">Loading helplines…</p></div>
+    <h2>Control selected phone</h2>
+    <div id="control"><p class="hint">Select a device to control it.</p></div>
+    <h2>Webcam frames</h2>
+    <div class="frames" id="frames"><p class="hint">No frames yet.</p></div>
+    <h2>Event timeline</h2>
+    <div id="events"></div>
+  </div>
+</div>
+
+<!-- geofence add popup content template is built in JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const LS = "guardian_token";
+let TOKEN = localStorage.getItem(LS) || "";
+let map, markers = {}, tracks = {}, fenceLayers = {}, placeMarkers = {}, selected = null, pendingLatLng = null;
+let audioCtx = null, alarmTimer = null;
+
+// ---------- auth / fetch ----------
+function authHeaders(extra={}){ return Object.assign({Authorization:"Bearer "+TOKEN}, extra); }
+async function api(path, opts={}){
+  opts.headers = authHeaders(opts.headers||{});
+  const r = await fetch(path, opts);
+  if(r.status===401){ logout(); throw new Error("unauthorized"); }
+  return r;
+}
+function frameUrl(name){ return "/frames/"+name+"?token="+encodeURIComponent(TOKEN); }
+function logout(){ localStorage.removeItem(LS); location.reload(); }
+
+document.getElementById("tokGo").onclick = tryToken;
+document.getElementById("tok").addEventListener("keydown", e=>{ if(e.key==="Enter") tryToken(); });
+async function tryToken(){
+  TOKEN = document.getElementById("tok").value.trim();
+  const r = await fetch("/api/state", {headers:{Authorization:"Bearer "+TOKEN}});
+  if(r.ok){ localStorage.setItem(LS, TOKEN); boot(); }
+  else document.getElementById("tokErr").style.display="block";
+}
+
+// ---------- boot ----------
+async function boot(){
+  document.getElementById("gate").style.display="none";
+  document.getElementById("main").style.display="grid";
+  initMap();
+  await loadConfig();
+  await refresh();
+  connectWS();
+  setInterval(refresh, 12000); // fallback poll
+}
+
+let HELPLINES=[];
+async function loadConfig(){
+  try{ const r=await api("/api/config"); const c=await r.json(); HELPLINES=c.helplines||[]; renderHelp(); }catch(e){}
+}
+function renderHelp(){
+  const el=document.getElementById("helpbar");
+  el.innerHTML = HELPLINES.map(h=>
+    `<a href="tel:${h.number}" style="text-decoration:none"><div class="card" style="cursor:pointer">
+       📞 <b>${esc(h.label)}</b> — tap to call <span class="pill" style="float:right">${esc(h.number)}</span>
+     </div></a>`).join("") +
+    `<p class="hint">Calling works if the dashboard is open on a phone; on a laptop, dial the shown number.</p>`;
+}
+
+function renderControl(){
+  const el=document.getElementById("control");
+  if(!selected){ el.innerHTML='<p class="hint">Select a device to control it.</p>'; return; }
+  const name=(STATE.devices.find(x=>x.id===selected)||{}).name||selected;
+  el.innerHTML=`<p class="hint">Controlling <b>${esc(name)}</b> (silent phone acts on next poll, ~5s):</p>
+    <div class="row"><button class="ghost" onclick="sendCmd('snap')">📸 Snapshot</button>
+      <button class="ghost" onclick="sendCmd('ping_now')">📍 Locate now</button></div>
+    <div class="row"><button class="ghost" onclick="sendCmd('live_on')">🎥 Live frames ON</button>
+      <button class="ghost" onclick="sendCmd('live_off')">⏹ Live OFF</button></div>
+    <div class="row"><button class="ghost" onclick="sendCmd('hide')">🙈 Hide app</button>
+      <button class="ghost" onclick="sendCmd('unhide')">👁 Unhide app</button></div>
+    <button class="danger" onclick="sendCmd('sos')">🚨 Trigger SOS on phone</button>`;
+}
+async function sendCmd(cmd){
+  await api("/api/command",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({device_id:selected,cmd})});
+}
+
+// ---------- pairing ----------
+let pairTimer=null;
+async function pairNew(){
+  const r=await api("/api/pair/new",{method:"POST"}); const {code,ttl}=await r.json();
+  const url=location.origin+"/pwa/?code="+code;
+  document.getElementById("qr").innerHTML="";
+  new QRCode(document.getElementById("qr"),{text:url,width:200,height:200,
+    colorDark:"#000000",colorLight:"#ffffff"});
+  document.getElementById("pairCode").textContent=code;
+  document.getElementById("pairUrl").textContent=location.host+"/pwa/";
+  document.getElementById("pairModal").style.display="flex";
+  let left=ttl; const cd=document.getElementById("pairCountdown"); cd.textContent=left;
+  clearInterval(pairTimer);
+  pairTimer=setInterval(()=>{ left--; cd.textContent=left; if(left<=0) closePair(); },1000);
+}
+function closePair(){ clearInterval(pairTimer); document.getElementById("pairModal").style.display="none"; refresh(); }
+
+function initMap(){
+  map = L.map("map").setView([20,0], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
+  map.on("click", e=>{
+    pendingLatLng = e.latlng;
+    openFencePopup(e.latlng);
+  });
+}
+
+function openFencePopup(ll){
+  const html = `<div style="min-width:200px">
+    <b>New geofence</b><br>
+    <input id="fn" placeholder="name" style="margin:6px 0;width:100%">
+    <input id="fr" type="number" value="150" style="margin:0 0 6px;width:100%" placeholder="radius (m)">
+    <select id="fk" style="width:100%;margin-bottom:6px">
+      <option value="danger">danger (alert on enter)</option>
+      <option value="safe">safe (alert on leave)</option>
+    </select>
+    <button onclick="saveFence(${ll.lat},${ll.lng})" style="width:100%">Add zone</button>
+  </div>`;
+  L.popup().setLatLng(ll).setContent(html).openOn(map);
+}
+async function saveFence(lat,lng){
+  const name=document.getElementById("fn").value||"zone";
+  const radius=parseFloat(document.getElementById("fr").value)||150;
+  const kind=document.getElementById("fk").value;
+  await api("/api/geofence",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name,lat,lon:lng,radius,kind})});
+  map.closePopup(); refresh();
+}
+
+// ---------- rendering ----------
+let STATE = {devices:[], events:[], frames:[], geofences:[]};
+async function refresh(){
+  const r = await api("/api/state"); STATE = await r.json();
+  renderDevices(); renderEvents(); renderFrames(); renderFences(); renderWifi(); renderPlaces(); renderControl();
+  updateOnlineBadges();
+}
+
+function fmtAgo(ts){
+  if(!ts) return "never";
+  const s = Math.max(0, (STATE.now||Date.now()/1000) - ts);
+  if(s<60) return Math.floor(s)+"s ago";
+  if(s<3600) return Math.floor(s/60)+"m ago";
+  return Math.floor(s/3600)+"h ago";
+}
+
+function renderDevices(){
+  const el=document.getElementById("devices"); el.innerHTML="";
+  if(!STATE.devices.length){ el.innerHTML='<p class="hint">No devices yet. Open the phone app and start tracking.</p>'; return; }
+  STATE.devices.forEach(d=>{
+    const lp=d.last_ping||{};
+    const online = (STATE.now - (d.last_seen||0)) < (STATE.offline_timeout||90);
+    const bat = lp.battery!=null ? Math.round(lp.battery)+"%" : "—";
+    const spd = lp.speed!=null ? (lp.speed*3.6).toFixed(1)+" km/h" : "—";
+    const c=document.createElement("div");
+    c.className="card"+(selected===d.id?" sel":"");
+    c.innerHTML=`<div class="dev-name"><span class="dot ${online?'on':'off'}"></span>${esc(d.name||d.id)}</div>
+      <div class="meta">
+        <span class="pill">🔋 ${bat}</span><span class="pill">🏃 ${spd}</span><br>
+        last signal ${fmtAgo(d.last_seen)}
+        ${lp.lat!=null?`<br>${lp.lat.toFixed(5)}, ${lp.lon.toFixed(5)} (±${Math.round(lp.accuracy||0)}m)`:""}
+      </div>`;
+    c.onclick=()=>selectDevice(d.id);
+    el.appendChild(c);
+    if(lp.lat!=null) placeMarker(d, online);
+  });
+}
+
+function placeMarker(d, online){
+  const lp=d.last_ping; const ll=[lp.lat,lp.lon];
+  if(markers[d.id]){ markers[d.id].setLatLng(ll); }
+  else{
+    markers[d.id]=L.marker(ll).addTo(map).on("click",()=>selectDevice(d.id));
+  }
+  markers[d.id].bindTooltip(esc(d.name||d.id)+(online?"":" (offline)"),{permanent:false});
+}
+
+async function selectDevice(id){
+  selected=id;
+  renderDevices(); renderWifi(); renderPlaces(); renderControl(); loadSuggestions(id);
+  const r=await api("/api/track/"+encodeURIComponent(id)); const {track}=await r.json();
+  const pts=track.filter(p=>p.lat!=null).map(p=>[p.lat,p.lon]);
+  if(tracks[id]) map.removeLayer(tracks[id]);
+  if(pts.length){
+    tracks[id]=L.polyline(pts,{color:"#4f9dff",weight:3,opacity:.8}).addTo(map);
+    map.fitBounds(tracks[id].getBounds(),{padding:[50,50],maxZoom:17});
+  }
+}
+
+function renderWifi(){
+  const el=document.getElementById("wifi");
+  if(!selected){ el.innerHTML='<p class="hint">Select a device.</p>'; return; }
+  const d=STATE.devices.find(x=>x.id===selected);
+  const w=(d&&d.wifi)||[];
+  if(!w.length){ el.innerHTML='<p class="hint">No WiFi scans (PWA can\'t scan; Android app can).</p>'; return; }
+  el.innerHTML=w.map(n=>`<div class="wifi"><span>${esc(n.ssid||"(hidden)")}</span><span>${n.rssi!=null?n.rssi+" dBm":""}</span></div>`).join("");
+}
+
+function renderEvents(){
+  const el=document.getElementById("events"); el.innerHTML="";
+  if(!STATE.events.length){ el.innerHTML='<p class="hint">No events.</p>'; return; }
+  STATE.events.forEach(ev=>{
+    const d=document.createElement("div");
+    d.className="ev "+(ev.severity||"info");
+    const name=(STATE.devices.find(x=>x.id===ev.device_id)||{}).name||ev.device_id;
+    d.innerHTML=`<b>${esc(ev.message)}</b>
+      <div class="t"><span>${esc(name)} · ${new Date(ev.ts*1000).toLocaleTimeString()}</span>
+      ${ev.ack?"":`<button class="ghost" onclick="ack(${ev.id},event)">ack</button>`}</div>`;
+    el.appendChild(d);
+  });
+}
+async function ack(id,e){ e.stopPropagation(); await api("/api/ack/"+id,{method:"POST"}); refresh(); }
+
+function renderFrames(){
+  const el=document.getElementById("frames");
+  if(!STATE.frames.length){ el.innerHTML='<p class="hint">No frames yet.</p>'; return; }
+  el.innerHTML=STATE.frames.map(f=>
+    `<a href="${frameUrl(f.path)}" target="_blank" title="${f.kind} · ${new Date(f.ts*1000).toLocaleString()}">
+       <img src="${frameUrl(f.path)}" loading="lazy"></a>`).join("");
+}
+
+function renderFences(){
+  const el=document.getElementById("fences"); el.innerHTML="";
+  Object.values(fenceLayers).forEach(l=>map.removeLayer(l)); fenceLayers={};
+  if(!STATE.geofences.length){ el.innerHTML='<p class="hint">None.</p>'; }
+  STATE.geofences.forEach(f=>{
+    const color=f.kind==="danger"?"#ff4d4f":"#39d98a";
+    fenceLayers[f.id]=L.circle([f.lat,f.lon],{radius:f.radius,color,fillOpacity:.08}).addTo(map);
+    const row=document.createElement("div");
+    row.className="card"; row.style.cursor="default";
+    row.innerHTML=`<div class="dev-name">${f.kind==="danger"?"⛔":"✅"} ${esc(f.name)}</div>
+      <div class="meta">${Math.round(f.radius)} m radius
+      <button class="ghost" style="float:right;padding:2px 8px" onclick="delFence(${f.id})">delete</button></div>`;
+    el.appendChild(row);
+  });
+}
+async function delFence(id){ await api("/api/geofence/"+id,{method:"DELETE"}); refresh(); }
+
+function updateOnlineBadges(){ /* markers tooltips already refreshed in renderDevices */ }
+
+// ---------- places (home / office / learned) ----------
+const PLACE_EMOJI={home:"🏠",office:"🏢",auto:"⭐",custom:"📍"};
+function placeIcon(kind){ return L.divIcon({html:`<div style="font-size:20px;line-height:20px">${PLACE_EMOJI[kind]||"📍"}</div>`,className:"",iconSize:[22,22],iconAnchor:[11,11]}); }
+
+function renderPlaces(){
+  const el=document.getElementById("places");
+  Object.values(placeMarkers).forEach(m=>map.removeLayer(m)); placeMarkers={};
+  (STATE.places||[]).forEach(p=>{
+    placeMarkers[p.id]=L.marker([p.lat,p.lon],{icon:placeIcon(p.kind)})
+      .addTo(map).bindTooltip(esc(p.name));
+  });
+  const mine=(STATE.places||[]).filter(p=>!selected||p.device_id===selected);
+  document.getElementById("placesHint").textContent = selected?"":"(select a device to manage)";
+  let html="";
+  if(selected){
+    html+=`<div class="row" style="margin-bottom:8px">
+      <button class="ghost" onclick="addHere('home')">🏠 Set Home here</button>
+      <button class="ghost" onclick="addHere('office')">🏢 Set Office here</button></div>`;
+  }
+  if(!mine.length){ html+='<p class="hint">No places yet. Home/office are auto-logged; frequent spots are learned automatically.</p>'; }
+  mine.forEach(p=>{
+    html+=`<div class="card" style="cursor:default">
+      <div class="dev-name">${PLACE_EMOJI[p.kind]||"📍"} ${esc(p.name)}
+        ${p.kind==="auto"?'<span class="pill">learned</span>':""}</div>
+      <div class="meta">visits: ${p.visits||0}
+        <span style="float:right">
+        <button class="ghost" style="padding:2px 7px" onclick="renamePlace(${p.id},'${esc(p.name)}')">rename</button>
+        <button class="ghost" style="padding:2px 7px" onclick="delPlace(${p.id})">✕</button></span>
+      </div></div>`;
+  });
+  el.innerHTML=html;
+}
+
+async function addHere(kind){
+  if(!selected) return alert("Select a device first.");
+  const d=STATE.devices.find(x=>x.id===selected); const lp=d&&d.last_ping;
+  if(!lp||lp.lat==null) return alert("No current position for this device yet.");
+  const name=prompt("Name this place:", kind==="home"?"Home":"Office"); if(!name) return;
+  await api("/api/places",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({device_id:selected,name,lat:lp.lat,lon:lp.lon,radius:120,kind})});
+  refresh();
+}
+async function renamePlace(id,cur){
+  const name=prompt("Rename place:",cur); if(!name) return;
+  const kind=/home/i.test(name)?"home":/office|work/i.test(name)?"office":"custom";
+  await api("/api/places/"+id+"/rename",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name,kind})});
+  refresh();
+}
+async function delPlace(id){ await api("/api/places/"+id,{method:"DELETE"}); refresh(); }
+
+async function loadSuggestions(id){
+  const box=document.getElementById("suggestions"); box.innerHTML="";
+  try{
+    const r=await api("/api/places/suggestions/"+encodeURIComponent(id));
+    const {suggestions}=await r.json();
+    // hide ones already close to a saved place
+    const saved=(STATE.places||[]).filter(p=>p.device_id===id);
+    const fresh=suggestions.filter(s=>!saved.some(p=>dist(s.lat,s.lon,p.lat,p.lon)<150));
+    if(!fresh.length) return;
+    box.innerHTML='<p class="hint">Frequently visited — tap to save & name:</p>'+
+      fresh.map(s=>`<div class="card" style="cursor:pointer" onclick="saveSuggestion(${s.lat},${s.lon})">
+        <div class="meta">📍 ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · seen ${s.count}×</div></div>`).join("");
+  }catch(e){}
+}
+async function saveSuggestion(lat,lon){
+  const name=prompt("Name this frequent place:"); if(!name) return;
+  const kind=/home/i.test(name)?"home":/office|work/i.test(name)?"office":"custom";
+  await api("/api/places",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({device_id:selected,name,lat,lon,radius:120,kind})});
+  refresh();
+}
+function dist(lat1,lon1,lat2,lon2){ // rough metres
+  const R=6371000, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+
+// ---------- live websocket ----------
+function connectWS(){
+  const proto = location.protocol==="https:"?"wss":"ws";
+  const ws=new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.kind==="event"){ onEvent(m.event); refresh(); }
+    else if(m.kind==="ping"||m.kind==="frame"||m.kind==="refresh"){ refresh(); }
+  };
+  ws.onclose=()=>setTimeout(connectWS,3000);
+}
+function onEvent(ev){
+  if(ev.severity==="critical"){ raiseAlarm(ev.message); }
+}
+
+// ---------- alarm ----------
+function raiseAlarm(msg){
+  document.getElementById("alarmMsg").textContent="🚨 "+msg;
+  document.getElementById("alarm").style.display="flex";
+  startBeep();
+}
+function startBeep(){
+  stopAlarm(false);
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const beep=()=>{
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(.001,audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(.4,audioCtx.currentTime+.05);
+      g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.4);
+      o.start(); o.stop(audioCtx.currentTime+.4);
+    };
+    beep(); alarmTimer=setInterval(beep,900);
+  }catch(e){}
+}
+function stopAlarm(hide=true){
+  if(alarmTimer){ clearInterval(alarmTimer); alarmTimer=null; }
+  if(hide) document.getElementById("alarm").style.display="none";
+}
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// auto-open if token already saved
+if(TOKEN){ fetch("/api/state",{headers:{Authorization:"Bearer "+TOKEN}})
+  .then(r=>{ if(r.ok) boot(); }); }
+</script>
+</body>
+</html>

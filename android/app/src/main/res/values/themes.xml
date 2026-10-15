@@ -1,0 +1,39 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Guardian" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#0E1116</item>
+        <item name="android:windowBackground">#0E1116</item>
+    </style>
+
+    <style name="Lbl">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#8B98A5</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+
+    <style name="Fld">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#E6EDF3</item>
+        <item name="android:textColorHint">#5A6672</item>
+        <item name="android:backgroundTint">#2A323D</item>
+        <item name="android:padding">10dp</item>
+    </style>
+
+    <style name="Btn">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">14dp</item>
+        <item name="android:backgroundTint">#4F9DFF</item>
+        <item name="android:textColor">#06121F</item>
+    </style>
+
+    <style name="BtnGhost" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="android:textColor">#E6EDF3</item>
+    </style>
+</resources>

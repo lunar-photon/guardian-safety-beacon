@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#0E1116">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️ Guardian — this phone"
+            android:textColor="#E6EDF3"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:paddingBottom="2dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Broadcasts your own location, nearby WiFi and webcam to your server."
+            android:textColor="#8B98A5"
+            android:textSize="13sp"
+            android:paddingBottom="14dp" />
+
+        <TextView style="@style/Lbl" android:text="Server URL" />
+        <EditText android:id="@+id/server" style="@style/Fld"
+            android:hint="https://xxxx.ngrok-free.app" android:inputType="textUri" />
+
+        <TextView style="@style/Lbl" android:text="Pairing code (from dashboard → Pair a device)" />
+        <EditText android:id="@+id/code" style="@style/Fld"
+            android:hint="6-letter code" android:inputType="textCapCharacters" />
+
+        <TextView style="@style/Lbl" android:text="Token (advanced — leave blank if pairing)" />
+        <EditText android:id="@+id/token" style="@style/Fld"
+            android:hint="SAFETY_TOKEN" android:inputType="textPassword" />
+
+        <TextView style="@style/Lbl" android:text="This device's name" />
+        <EditText android:id="@+id/name" style="@style/Fld"
+            android:hint="e.g. Arushi's phone" android:inputType="textPersonName" />
+
+        <TextView style="@style/Lbl" android:text="Ping interval (seconds)" />
+        <EditText android:id="@+id/interval" style="@style/Fld"
+            android:inputType="number" />
+
+        <Button android:id="@+id/save" style="@style/Btn" android:text="Pair / Save" />
+        <Button android:id="@+id/grant" style="@style/BtnGhost" android:text="Grant permissions" />
+        <Button android:id="@+id/battery" style="@style/BtnGhost"
+            android:text="Allow unrestricted battery (for background)" />
+
+        <TextView android:id="@+id/permStatus" style="@style/Lbl"
+            android:text="Permissions: needed" />
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#2A323D" android:layout_marginVertical="16dp" />
+
+        <TextView android:id="@+id/status"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="○ Stopped" android:textColor="#E6EDF3"
+            android:textSize="16sp" android:paddingBottom="8dp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button android:id="@+id/start" style="@style/Btn"
+                android:layout_weight="1" android:text="Start tracking" />
+            <Space android:layout_width="10dp" android:layout_height="1dp" />
+            <Button android:id="@+id/stop" style="@style/BtnGhost"
+                android:layout_weight="1" android:text="Stop" />
+        </LinearLayout>
+
+        <Button android:id="@+id/sos"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="🚨 SOS — alert + photos"
+            android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="18sp"
+            android:backgroundTint="#FF4D4F" android:layout_marginTop="16dp"
+            android:paddingVertical="18dp" />
+
+        <Button android:id="@+id/hideIcon" style="@style/BtnGhost"
+            android:text="🫥 Hide app icon (keep running)" android:layout_marginTop="20dp" />
+
+    </LinearLayout>
+</ScrollView>
