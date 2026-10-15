@@ -78,6 +78,7 @@
                     android:id="@+id/weatherSettingsBtn"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
+                    android:visibility="gone"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@android:drawable/ic_menu_info_details"
                     app:tint="#FFFFFF"
