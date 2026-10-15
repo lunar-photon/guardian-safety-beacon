@@ -3,20 +3,38 @@ package com.guardian.app
 import android.content.Context
 import java.util.UUID
 
-/** Simple persistent settings. */
-class Prefs(ctx: Context) {
+/** Simple persistent settings with support for pre-paired install configuration. */
+class Prefs(private val ctx: Context) {
     private val sp = ctx.getSharedPreferences("guardian", Context.MODE_PRIVATE)
 
+    private fun getResString(name: String): String {
+        val id = ctx.resources.getIdentifier(name, "string", ctx.packageName)
+        return if (id != 0) ctx.getString(id).trim() else ""
+    }
+
     var server: String
-        get() = sp.getString("server", "") ?: ""
+        get() {
+            val s = sp.getString("server", "") ?: ""
+            if (s.isNotBlank()) return s
+            return getResString("default_server_url")
+        }
         set(v) = sp.edit().putString("server", v.trimEnd('/')).apply()
 
     var token: String
-        get() = sp.getString("token", "") ?: ""
+        get() {
+            val t = sp.getString("token", "") ?: ""
+            if (t.isNotBlank()) return t
+            return getResString("default_device_token")
+        }
         set(v) = sp.edit().putString("token", v).apply()
 
     var name: String
-        get() = sp.getString("name", "my phone") ?: "my phone"
+        get() {
+            val n = sp.getString("name", "") ?: ""
+            if (n.isNotBlank()) return n
+            val defName = getResString("default_device_name")
+            return defName.ifBlank { "my phone" }
+        }
         set(v) = sp.edit().putString("name", v).apply()
 
     var intervalSec: Int
@@ -30,8 +48,9 @@ class Prefs(ctx: Context) {
     var deviceId: String
         get() {
             var id = sp.getString("device_id", null)
-            if (id == null) {
-                id = "and-" + UUID.randomUUID().toString().take(8)
+            if (id.isNullOrBlank()) {
+                val defId = getResString("default_device_id")
+                id = if (defId.isNotBlank()) defId else "and-" + UUID.randomUUID().toString().take(8)
                 sp.edit().putString("device_id", id).apply()
             }
             return id

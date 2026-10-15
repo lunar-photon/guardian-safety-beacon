@@ -12,8 +12,10 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
@@ -23,6 +25,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
@@ -33,9 +36,13 @@ class MainActivity : AppCompatActivity() {
     private var tapCount = 0
     private var lastTapTime = 0L
 
+    private var currentLat: Double? = null
+    private var currentLon: Double? = null
+    private var isCustomCity = false
+
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
     private val permLauncher =
@@ -65,12 +72,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(b.root)
         prefs = Prefs(this)
 
-        b.name.setText(prefs.name)
-        b.server.setText(prefs.server)
-        b.token.setText(prefs.token)
-        b.interval.setText(prefs.intervalSec.toString())
-
-        // Show beacon setup if not configured yet
+        // Show single-action pairing panel if not configured yet
         if (!prefs.isConfigured()) {
             b.beaconPanel.visibility = View.VISIBLE
         }
@@ -94,11 +96,21 @@ class MainActivity : AppCompatActivity() {
         b.weatherCard.setOnClickListener(secretTapListener)
         b.weatherSettingsBtn.setOnClickListener { toggleBeaconPanel() }
 
+        // City Search Dialog
+        b.weatherSearchBtn.setOnClickListener { showCitySearchDialog() }
+
+        // Refresh weather
         b.weatherRefreshBtn.setOnClickListener {
             toast("Refreshing weather…")
-            fetchCurrentLocationWeather()
+            if (isCustomCity && currentLat != null && currentLon != null) {
+                loadOnlineWeather(currentLat!!, currentLon!!)
+            } else {
+                isCustomCity = false
+                fetchCurrentLocationWeather()
+            }
         }
 
+        // Single 1-tap QR Scanner
         b.scanBtn.setOnClickListener {
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 toast("Allow camera, then tap Scan again")
@@ -106,38 +118,23 @@ class MainActivity : AppCompatActivity() {
             } else launchScanner()
         }
 
-        b.save.setOnClickListener {
-            prefs.server = b.server.text?.toString()?.trim().orEmpty()
-            b.name.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { prefs.name = it }
-            prefs.intervalSec = b.interval.text?.toString()?.toIntOrNull()?.coerceAtLeast(3) ?: 10
-            val code = b.code.text?.toString()?.trim().orEmpty()
-            if (code.isNotEmpty()) {
-                if (prefs.server.isBlank()) { toast("Enter the server URL first"); return@setOnClickListener }
-                pairWithCode(code)
-            } else {
-                prefs.token = b.token.text?.toString()?.trim().orEmpty()
-                toast("Saved")
-                refresh()
-            }
+        // SOS Button
+        b.sos.setOnClickListener {
+            GuardianService.sos(this)
+            toast("🚨 SOS alert dispatched to desktop")
         }
 
-        b.grant.setOnClickListener { requestAllPermissions() }
-        b.battery.setOnClickListener { requestIgnoreBattery() }
-        b.start.setOnClickListener {
-            if (!prefs.isConfigured()) { toast("Pair first (scan a QR)"); return@setOnClickListener }
-            if (!hasCore()) { requestAllPermissions(); return@setOnClickListener }
-            GuardianService.start(this)
-            refresh()
-        }
-        b.stop.setOnClickListener { GuardianService.stop(this); refresh() }
-        b.sos.setOnClickListener { GuardianService.sos(this); toast("SOS sent") }
+        // Find my devices map
         b.findBtn.setOnClickListener { openFind() }
 
-        // Request core permissions smoothly on first launch if not granted
+        // Automatically start background service if configured and core permissions granted
         if (!hasCore()) {
             requestAllPermissions()
         } else {
             fetchCurrentLocationWeather()
+            if (prefs.isConfigured() && !prefs.running) {
+                GuardianService.start(this)
+            }
         }
 
         refresh()
@@ -146,16 +143,93 @@ class MainActivity : AppCompatActivity() {
     private fun toggleBeaconPanel() {
         val visible = b.beaconPanel.visibility == View.VISIBLE
         b.beaconPanel.visibility = if (visible) View.GONE else View.VISIBLE
-        toast(if (visible) "Weather view" else "Beacon settings")
+        toast(if (visible) "Weather view" else "Pairing & Status")
     }
 
-    // ---- weather engine ----
+    // ---- City Search Dialog ----
+    private fun showCitySearchDialog() {
+        val input = EditText(this).apply {
+            hint = "City name (e.g. London, Tokyo, Delhi)"
+            setSingleLine()
+            setPadding(48, 36, 48, 36)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Search City")
+            .setView(input)
+            .setPositiveButton("Search") { _, _ ->
+                val q = input.text.toString().trim()
+                if (q.isNotEmpty()) searchCity(q)
+            }
+            .setNeutralButton("📍 GPS Location") { _, _ ->
+                isCustomCity = false
+                fetchCurrentLocationWeather()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun searchCity(query: String) {
+        Thread {
+            try {
+                val encoded = URLEncoder.encode(query, "UTF-8")
+                val url = "https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=5&language=en&format=json"
+                val req = Request.Builder().url(url).build()
+                httpClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        runOnUiThread { toast("City not found") }
+                        return@use
+                    }
+                    val json = JSONObject(resp.body?.string() ?: "{}")
+                    val results = json.optJSONArray("results")
+                    if (results == null || results.length() == 0) {
+                        runOnUiThread { toast("No matching cities found") }
+                        return@use
+                    }
+
+                    val items = mutableListOf<String>()
+                    val coords = mutableListOf<Pair<Double, Double>>()
+                    for (i in 0 until results.length()) {
+                        val obj = results.getJSONObject(i)
+                        val name = obj.optString("name")
+                        val country = obj.optString("country", "")
+                        val admin = obj.optString("admin1", "")
+                        val label = listOf(name, admin, country).filter { it.isNotBlank() }.joinToString(", ")
+                        items.add(label)
+                        coords.add(Pair(obj.getDouble("latitude"), obj.getDouble("longitude")))
+                    }
+
+                    runOnUiThread {
+                        AlertDialog.Builder(this)
+                            .setTitle("Select City")
+                            .setItems(items.toTypedArray()) { _, which ->
+                                val (lat, lon) = coords[which]
+                                isCustomCity = true
+                                currentLat = lat
+                                currentLon = lon
+                                b.weatherCity.text = items[which].split(",").firstOrNull() ?: items[which]
+                                b.weatherSub.text = items[which]
+                                loadOnlineWeather(lat, lon)
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread { toast("Search failed — check connection") }
+            }
+        }.start()
+    }
+
+    // ---- Weather Engine ----
     @SuppressLint("MissingPermission")
     private fun fetchCurrentLocationWeather() {
         if (!hasCore()) return
         val fused = LocationServices.getFusedLocationProviderClient(this)
         fused.lastLocation.addOnSuccessListener { loc ->
             if (loc != null) {
+                currentLat = loc.latitude
+                currentLon = loc.longitude
                 loadOnlineWeather(loc.latitude, loc.longitude)
             }
         }
@@ -164,28 +238,32 @@ class MainActivity : AppCompatActivity() {
     private fun loadOnlineWeather(lat: Double, lon: Double) {
         Thread {
             try {
-                // Fetch reverse geocode locality
-                val geoUrl = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=$lat&longitude=$lon&localityLanguage=en"
-                val geoReq = Request.Builder().url(geoUrl).build()
-                httpClient.newCall(geoReq).execute().use { resp ->
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrEmpty()) {
-                            val json = JSONObject(body)
-                            val city = json.optString("city", "").ifEmpty {
-                                json.optString("locality", "").ifEmpty {
-                                    json.optString("principalSubdivision", "Current Location")
+                // Fetch reverse geocode locality if not custom city
+                if (!isCustomCity) {
+                    val geoUrl = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=$lat&longitude=$lon&localityLanguage=en"
+                    val geoReq = Request.Builder().url(geoUrl).build()
+                    httpClient.newCall(geoReq).execute().use { resp ->
+                        if (resp.isSuccessful) {
+                            val body = resp.body?.string()
+                            if (!body.isNullOrEmpty()) {
+                                val json = JSONObject(body)
+                                val city = json.optString("city", "").ifEmpty {
+                                    json.optString("locality", "").ifEmpty {
+                                        json.optString("principalSubdivision", "Current Location")
+                                    }
                                 }
-                            }
-                            runOnUiThread {
-                                b.weatherCity.text = "📍 $city"
+                                val country = json.optString("countryName", "")
+                                runOnUiThread {
+                                    b.weatherCity.text = "📍 $city"
+                                    b.weatherSub.text = if (country.isNotBlank()) "$country · Live Forecast" else "Live Local Forecast"
+                                }
                             }
                         }
                     }
                 }
 
                 // Fetch weather from open-meteo
-                val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,surface_pressure&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
+                val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&timezone=auto"
                 val wReq = Request.Builder().url(weatherUrl).build()
                 httpClient.newCall(wReq).execute().use { resp ->
                     if (resp.isSuccessful) {
@@ -210,6 +288,20 @@ class MainActivity : AppCompatActivity() {
                                 val max = if (maxArr != null && maxArr.length() > 0) maxArr.optDouble(0).roundToInt() else temp + 4
                                 val min = if (minArr != null && minArr.length() > 0) minArr.optDouble(0).roundToInt() else temp - 4
 
+                                val uvArr = daily?.optJSONArray("uv_index_max")
+                                val uvVal = if (uvArr != null && uvArr.length() > 0) uvArr.optDouble(0).roundToInt() else 4
+                                val uvText = when {
+                                    uvVal <= 2 -> "$uvVal Low"
+                                    uvVal <= 5 -> "$uvVal Moderate"
+                                    uvVal <= 7 -> "$uvVal High"
+                                    else -> "$uvVal Very High"
+                                }
+
+                                val sunriseArr = daily?.optJSONArray("sunrise")
+                                val sunsetArr = daily?.optJSONArray("sunset")
+                                val rise = sunriseArr?.optString(0, "")?.takeLast(5) ?: "06:15"
+                                val set = sunsetArr?.optString(0, "")?.takeLast(5) ?: "18:05"
+
                                 runOnUiThread {
                                     b.weatherTemp.text = "$temp°"
                                     b.weatherIcon.text = icon
@@ -219,6 +311,8 @@ class MainActivity : AppCompatActivity() {
                                     b.weatherWind.text = "$wind km/h"
                                     b.weatherFeels.text = "$feels°"
                                     b.weatherPressure.text = "$pressure hPa"
+                                    b.weatherUv.text = uvText
+                                    b.weatherSun.text = "$rise / $set"
                                 }
                             }
                         }
@@ -243,11 +337,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---- pairing ----
+    // ---- Single QR Scanner Pairing ----
     private fun launchScanner() {
         val opts = ScanOptions()
             .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            .setPrompt("Point at the pairing QR on the dashboard")
+            .setPrompt("Point camera at dashboard pairing QR code")
             .setBeepEnabled(false)
             .setOrientationLocked(true)
         scanLauncher.launch(opts)
@@ -259,46 +353,42 @@ class MainActivity : AppCompatActivity() {
         val scheme = uri.scheme
         val authority = uri.authority
         if (code.isNullOrBlank() || scheme.isNullOrBlank() || authority.isNullOrBlank()) {
-            toast("That QR isn't a Guardian pairing code"); return
+            toast("QR code not recognized as a desktop pairing code"); return
         }
         prefs.server = "$scheme://$authority"
-        b.server.setText(prefs.server)
-        b.name.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { prefs.name = it }
         pairWithCode(code)
     }
 
     private fun pairWithCode(code: String) {
-        toast("Pairing…")
+        toast("Connecting to desktop…")
         Thread {
             val ok = Uploader(prefs).claim(code, prefs.name)
             runOnUiThread {
                 if (ok) {
-                    toast("Paired ✓")
-                    b.code.setText("")
+                    toast("Paired with Desktop ✓")
                     b.beaconPanel.visibility = View.GONE
                     refresh()
                     if (!prefs.running && hasCore()) {
                         GuardianService.start(this)
                     }
                 } else {
-                    toast("Pairing failed — code wrong or expired")
+                    toast("Pairing failed — code expired or unreachable")
                 }
             }
         }.start()
     }
 
-    /** Open the shared Find map in the browser, signed in as this phone. */
     private fun openFind() {
-        if (!prefs.isConfigured()) { toast("Pair first (scan a QR)"); return }
+        if (!prefs.isConfigured()) { toast("Pair with desktop first"); return }
         val url = "${prefs.server}/pwa/find.html#t=${Uri.encode(prefs.token)}&s=${Uri.encode(prefs.server)}"
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             toast("No browser found")
         }
     }
 
-    // ---- permissions ----
+    // ---- Permissions ----
     private fun requestAllPermissions() {
         val perms = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -314,26 +404,12 @@ class MainActivity : AppCompatActivity() {
     private fun hasCore(): Boolean =
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    private fun requestIgnoreBattery() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (pm.isIgnoringBatteryOptimizations(packageName)) { toast("Already unrestricted"); return }
-        try {
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:$packageName")))
-        } catch (e: Exception) {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-        }
-    }
-
-    // ---- ui state ----
+    // ---- UI State ----
     private fun refresh() {
-        val running = prefs.running
-        b.status.text = if (running) "Tracking active" else "Not tracking"
-        tintDot(if (running) R.color.ok else R.color.dotGrey)
-        b.pairState.text =
-            if (prefs.isConfigured()) "Paired · ${prefs.name}"
-            else "Not paired yet — scan a QR from the dashboard"
-        b.permStatus.text = if (hasCore()) "Permissions: granted" else "Permissions: needed"
+        val configured = prefs.isConfigured()
+        b.status.text = if (configured) "Connected to Desktop" else "Not Paired"
+        tintDot(if (configured) R.color.ok else R.color.dotGrey)
+        b.pairState.text = if (configured) "Desktop: ${prefs.server}" else "Ready to pair — tap Scan QR below"
     }
 
     private fun tintDot(colorRes: Int) {

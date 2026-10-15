@@ -24,6 +24,7 @@ class Uploader(private val prefs: Prefs) {
         val req = Request.Builder()
             .url(prefs.server + path)
             .addHeader("Authorization", "Bearer " + prefs.token)
+            .addHeader("ngrok-skip-browser-warning", "1")
             .post(body.toString().toRequestBody(JSON))
             .build()
         return try {
@@ -77,6 +78,7 @@ class Uploader(private val prefs: Prefs) {
         }
         val req = Request.Builder()
             .url(prefs.server + "/api/pair/claim")       // no auth header for claim
+            .addHeader("ngrok-skip-browser-warning", "1")
             .post(body.toString().toRequestBody(JSON))
             .build()
         return try {
@@ -99,6 +101,7 @@ class Uploader(private val prefs: Prefs) {
         val req = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer " + prefs.token)
+            .addHeader("ngrok-skip-browser-warning", "1")
             .get()
             .build()
         return try {

