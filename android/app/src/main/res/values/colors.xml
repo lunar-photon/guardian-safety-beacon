@@ -1,3 +1,16 @@
 <resources>
-    <color name="ic_launcher_background">#1C232C</color>
+    <!-- launcher icon background (indigo so the icon looks intentional) -->
+    <color name="ic_launcher_background">#5B5BD6</color>
+
+    <!-- brand palette -->
+    <color name="brand">#5B5BD6</color>
+    <color name="brand2">#8E7BFF</color>
+    <color name="bg">#F4F5FB</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="textPrimary">#15162B</color>
+    <color name="textMuted">#6B7280</color>
+    <color name="ok">#22C55E</color>
+    <color name="danger">#EF4444</color>
+    <color name="stroke">#E7E8F0</color>
+    <color name="dotGrey">#9AA0AC</color>
 </resources>

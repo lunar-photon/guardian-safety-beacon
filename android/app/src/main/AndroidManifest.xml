@@ -38,6 +38,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Guardian">
 
         <!-- MainActivity is NOT a launcher itself. It is opened only via the alias

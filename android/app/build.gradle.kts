@@ -36,6 +36,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")  // QR scanner
 
     val camerax = "1.3.4"
     implementation("androidx.camera:camera-core:$camerax")

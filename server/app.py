@@ -19,6 +19,7 @@ import os
 import time
 import json
 import base64
+import socket
 import asyncio
 import secrets
 from pathlib import Path
@@ -40,7 +41,20 @@ if not TOKEN:
 
 OFFLINE_TIMEOUT = float(os.environ.get("OFFLINE_TIMEOUT", "90"))   # seconds of silence -> alert
 PROXIMITY_WARN_M = float(os.environ.get("PROXIMITY_WARN_M", "300"))  # warn when this close to a danger zone
+PORT = int(os.environ.get("PORT", "8000"))
 HERE = Path(__file__).resolve().parent
+
+
+def lan_ip() -> str:
+    """Best-effort local network IP so the phone can reach us on the same WiFi."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))     # no packets sent; just picks the outbound iface
+        return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 # India emergency / women-safety helplines. Served to clients so numbers live in one place.
 HELPLINES = [
@@ -428,7 +442,10 @@ def api_pair_new(request: Request, _=Depends(require_token)):
     _purge_pairings()
     code = "".join(secrets.choice(_PAIR_ALPHABET) for _ in range(6))
     _pairings[code] = {"created": time.time(), "used": False}
-    return {"code": code, "ttl": PAIR_TTL}
+    base = f"http://{lan_ip()}:{PORT}"
+    # `url` is what the QR encodes: scanning it on the same WiFi gives the phone
+    # both the server address and the code, so pairing is one tap.
+    return {"code": code, "ttl": PAIR_TTL, "server": base, "url": f"{base}/pwa/?code={code}"}
 
 
 @app.post("/api/pair/claim")
@@ -551,5 +568,5 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"  Guardian on http://{lan_ip()}:{PORT}  (dashboard + /pwa/)")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

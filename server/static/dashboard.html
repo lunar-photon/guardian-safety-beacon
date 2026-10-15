@@ -200,13 +200,16 @@ async function sendCmd(cmd){
 // ---------- pairing ----------
 let pairTimer=null;
 async function pairNew(){
-  const r=await api("/api/pair/new",{method:"POST"}); const {code,ttl}=await r.json();
-  const url=location.origin+"/pwa/?code="+code;
+  const r=await api("/api/pair/new",{method:"POST"}); const d=await r.json();
+  const code=d.code;
+  // use the server's LAN url so a phone on the same WiFi can scan & reach it
+  const url=d.url||(location.origin+"/pwa/?code="+code);
   document.getElementById("qr").innerHTML="";
   new QRCode(document.getElementById("qr"),{text:url,width:200,height:200,
     colorDark:"#000000",colorLight:"#ffffff"});
   document.getElementById("pairCode").textContent=code;
-  document.getElementById("pairUrl").textContent=location.host+"/pwa/";
+  document.getElementById("pairUrl").textContent=(d.server||location.origin).replace(/^https?:\/\//,"");
+  const ttl=d.ttl;
   document.getElementById("pairModal").style.display="flex";
   let left=ttl; const cd=document.getElementById("pairCountdown"); cd.textContent=left;
   clearInterval(pairTimer);
