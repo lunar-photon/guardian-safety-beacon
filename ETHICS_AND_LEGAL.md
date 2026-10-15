@@ -1,7 +1,7 @@
 # Ethics, Responsible Use, and Legal Disclaimer
 
 ## Project Purpose
-Guardian and Stratus are part of an ongoing open-source research and prototyping effort dedicated to women's safety, family protection, and personal emergency response in India. In high-risk environments, personal safety tools can assist trusted guardians and emergency contacts with real-time location telemetry, distress signaling, and emergency helpline routing.
+Guardian and Stratus are part of an ongoing open-source research and prototyping effort dedicated to family protection, women's safety, and personal emergency response in India. The system is designed around a centralized family model where a designated family protector—the Guardian Angel—maintains live situational awareness of family members' devices, providing rapid helpline dispatch, arrival/departure alerts, and emergency coordination in case an incident occurs.
 
 This repository is an early-stage work in progress created for academic, educational, and open safety research purposes.
 
@@ -15,10 +15,10 @@ A common question in threat modeling is why the mobile client operates disguised
 In domestic abuse, street harassment, kidnapping, or physical confrontation, the perpetrator's primary action is almost universally to confiscate the victim's phone.
 - Overt Safety Apps: If an aggressor inspects the phone and discovers an app labeled "Safety Beacon", "SOS", or "Emergency Tracker", it triggers immediate escalation, forced uninstallation, or destruction of the phone.
 - Protective Disguise: Incorporating the beacon into an authentic, working weather application follows established defensive design principles (similar to protective calculators and fake-call emergency tools). The phone displays legitimate local forecasts and radar, defusing suspicion and ensuring the device remains functional and connected.
-- Prevention of Retaliatory Violence: In escalating confrontations, requiring a victim to make overt physical motions to trigger a panic button endangers their physical safety. Background telemetry enables trusted watchers to detect anomalies passively.
+- Prevention of Retaliatory Violence: In escalating confrontations, requiring a victim to make overt physical motions to trigger a panic button endangers their physical safety. Background telemetry enables the Guardian Angel to detect anomalies passively.
 
 ### 2. Dual-Camera Verification (Tactical Intelligence)
-Remote emergency dispatchers or watchers cannot predict device orientation during an incident.
+The Guardian Angel cannot predict device orientation during an incident.
 - Firing both front and back cameras sequentially ensures that visual confirmation is captured regardless of whether the phone is face-up, face-down, or held in hand.
 - The dual perspective provides critical situational awareness: the environment (streets, vehicles, landmarks) via the rear camera, and the user perspective (who is holding or operating the phone) via the front camera.
 - Using discrete compressed snapshots instead of live video streaming preserves battery life and transmits reliably over weak 2G/3G cellular networks without heating the phone or alerting nearby individuals.

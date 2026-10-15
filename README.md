@@ -1,17 +1,26 @@
-# Guardian & Stratus: Silent Safety Beacon and Tracking Console
+# Guardian & Stratus: Silent Safety Beacon and Guardian Angel Console
 
 > Notice: Work in Progress — An open-source research and engineering prototype dedicated to women's safety, family protection, and personal emergency response in India.
 
-Guardian is a personal safety system paired with an authentic weather application (Stratus) that provides discrete emergency signaling, real-time location telemetry, and helpline dispatch for trusted watchers.
+Guardian is built around a centralized family protection model: one private laptop server maintains the real-time location, movement telemetry, and safety status of every family member in one place. The designated protector at the console acts as the Guardian Angel, holding immediate emergency dispatch tools, live location tracking, and situational awareness in case an emergency occurs.
 
 ---
 
 ## Important Notice: Ethical Use and Legal Disclaimer
 
-This repository is developed strictly for lawful, consensual safety purposes:
-- Women's safety and emergency response: Designed to give individuals and their trusted circles real-time awareness and rapid helpline access during emergencies.
+This repository is developed strictly for lawful, consensual family protection and women's safety:
+- Centralized family protection: Designed so a family's Guardian Angel can maintain live awareness of family members and provide rapid emergency assistance if an incident occurs.
 - Strictly prohibited for non-consensual surveillance: Covertly tracking another adult without informed consent constitutes criminal stalking under Section 354D of the Indian Penal Code (IPC) / Bharatiya Nyaya Sanhita (BNS), violates the Digital Personal Data Protection Act (DPDPA 2023), and breaches the Information Technology Act (Sections 43, 66E).
 - Disclaimer of liability: This software is provided as an open-source educational prototype on an "as is" basis. The maintainers and contributors disclaim all liability for unlawful, unethical, or unauthorized deployments by third parties. See ETHICS_AND_LEGAL.md for the full legal disclaimer.
+
+---
+
+## The Core Concept: One Server for the Whole Family
+
+The architecture is designed around family security:
+1. Centralized family hub: A single laptop running the Guardian server maintains the live coordinates, battery levels, movement status, and history of all paired family devices.
+2. The Guardian Angel role: The family member at the console acts as the Guardian Angel, receiving automated arrival and departure notices for safe zones (home, college, workplace), silence warnings if a phone goes offline, and rapid one-tap helpline dialing (112, 1091, 181).
+3. Discrete personal protection: Each family member's phone runs Stratus, appearing and behaving as an authentic weather application so that in an emergency, the safety beacon cannot be identified or tampered with by an aggressor.
 
 ---
 
@@ -29,7 +38,7 @@ In physical confrontations, kidnapping, domestic harassment, or robbery, an aggr
 - A functional weather application raises zero alarm. An assailant inspecting the device sees live local temperatures, hourly rain probabilities, and atmospheric data. There is no motivation to scrutinize or delete a standard utility.
 
 2. Preventing Retaliation During Escalation
-Forcing a victim to open an app and press a prominent on-screen panic button in front of an aggressive person frequently triggers immediate physical violence. Operating as a background weather utility allows trusted guardians to monitor route deviations, distress signals, or silence alarms without requiring the victim to make conspicuous, dangerous gestures.
+Forcing a victim to open an app and press a prominent on-screen panic button in front of an aggressive person frequently triggers immediate physical violence. Operating as a background weather utility allows the Guardian Angel to monitor route deviations, distress signals, or silence alarms without requiring the victim to make conspicuous, dangerous gestures.
 
 3. Eliminating Social Stigma and Scrutiny
 In conservative social environments, colleges, or shared households, having a visible tracking or safety app on one's home screen can lead to unwanted questioning, peer teasing, or victim-blaming. A weather app is completely neutral and socially invisible.
@@ -42,10 +51,10 @@ Modern mobile operating systems (Android 10+ and iOS) aggressively terminate bac
 
 ### Why Dual-Camera Capture (Front and Back)?
 
-When an operator on the laptop requests visual verification during an alert, firing snapshots from both the front and back cameras serves three tactical purposes:
+When the Guardian Angel requests visual verification during an alert, firing snapshots from both the front and back cameras serves three tactical purposes:
 
 1. Orientation Uncertainty
-The remote watcher has no way of knowing how the phone is physically oriented. It may be resting face-down on a car seat, screen-up on a desk, or tucked into a purse. Triggering both cameras guarantees that whichever lens has an unobstructed line of sight captures usable visual information.
+The Guardian Angel has no way of knowing how the phone is physically oriented. It may be resting face-down on a car seat, screen-up on a desk, or tucked into a purse. Triggering both cameras guarantees that whichever lens has an unobstructed line of sight captures usable visual information.
 
 2. Dual Context: Surroundings vs. Identity
 Each lens captures distinct intelligence essential for emergency dispatch:
@@ -55,7 +64,7 @@ Each lens captures distinct intelligence essential for emergency dispatch:
 3. Lightweight Intelligence on Degraded Cellular Networks
 Streaming continuous live video consumes immense battery and frequently drops when traveling through low-reception 2G or 3G zones.
 - Two discrete, compressed JPEG snapshots require only ~150 to 250 KB of total bandwidth.
-- They upload reliably even over marginal connections, providing immediate visual confirmation without triggering audible or visible indicators that could endanger the phone owner.
+- They upload reliably even over marginal connections, providing immediate visual confirmation without triggering audible or visible indicators that could endanger the family member.
 
 ---
 
@@ -64,19 +73,19 @@ Streaming continuous live video consumes immense battery and frequently drops wh
 In safety incidents, disappearances, or crimes, real-time intervention is not always possible before a situation unfolds. In such critical circumstances, the recorded telemetry, offline logs, and visual frames become indispensable forensic evidence for family, first responders, and law enforcement:
 
 1. Unbroken Timeline Reconstruction
-Every location fix recorded by Guardian includes precise GPS coordinates, timestamp, speed, heading, and accuracy radius. This enables investigators to reconstruct the victim's exact trajectory, travel speeds, route anomalies, and unscheduled stops down to the second.
+Every location fix recorded by Guardian includes precise GPS coordinates, timestamp, speed, heading, and accuracy radius. This enables investigators to reconstruct the family member's exact trajectory, travel speeds, route anomalies, and unscheduled stops down to the second.
 
 2. Offline Continuity in Signal Dead Zones
-Standard cloud tracking applications drop completely when an abducted or distressed individual is transported through underground parking, basements, or rural dead zones lacking cellular connectivity.
+Standard cloud tracking applications drop completely when an individual is transported through underground parking, basements, or rural dead zones lacking cellular connectivity.
 - Stratus continues silently recording fixes into its local SQLite database on the device.
 - As soon as the phone briefly regains connectivity or is recovered by authorities, all queued offline logs are streamed to the server.
-- This prevents the critical loss of location breadcrumbs precisely when an individual is in the highest danger.
+- This prevents the critical loss of location breadcrumbs precisely when a person is in the highest danger.
 
 3. Evidentiary Photographic Verification
 Dual-camera snapshots record vehicle interiors, license plates, road signage, and the faces of individuals holding or inspecting the phone. These time-stamped visual records provide objective physical evidence during official missing-person and police inquiries.
 
 4. Safe Remote Persistence
-Even if an assailant destroys, powers off, or discards the phone, all data and photos transmitted up to that point remain safely preserved on the watcher's private server, protecting vital clues that cannot be wiped by tampering with the phone.
+Even if an assailant destroys, powers off, or discards the phone, all data and photos transmitted up to that point remain safely preserved on the Guardian Angel's private server, protecting vital clues that cannot be wiped by tampering with the phone.
 
 ---
 
@@ -84,7 +93,7 @@ Even if an assailant destroys, powers off, or discards the phone, all data and p
 
 The setup consists of two primary components:
 - The Phone (Stratus): A fully functional weather application with live forecasts, hourly temperatures, and meteorological metrics that legitimately justifies continuous location access. In the background, it silently logs and reports GPS coordinates, battery level, motion, and on-demand camera captures. If disconnected or if the laptop is offline, Stratus securely caches location fixes in a local SQLite database and auto-purges logs older than 3 days.
-- The Laptop (Guardian): A private, self-hosted watcher dashboard displaying live position on an interactive map, motion speed, heading, visited places, activity events, and remote emergency controls. When a tracking session expires or is stopped, hosting terminates immediately and all links return HTTP 404 Not Found.
+- The Laptop (Guardian): A private, self-hosted Guardian Angel dashboard displaying live positions of all family devices on an interactive map, motion speeds, headings, visited places, activity events, and remote emergency controls. When a tracking session expires or is stopped, hosting terminates immediately and all links return HTTP 404 Not Found.
 
 ---
 
@@ -108,7 +117,7 @@ The installer automatically:
 - Compiles and signs Stratus.apk using the lightweight Gradle-free toolchain.
 - Places the ready-to-install APK at ~/Downloads/Stratus.apk.
 - Installs the global sshlocation command to ~/.local/bin/sshlocation.
-- Opens the live tracking dashboard in your default browser.
+- Opens the live Guardian Angel dashboard in your default browser.
 
 ---
 
@@ -173,7 +182,7 @@ The lower section of the dashboard broadcasts live position insights:
 - Event logs are restricted to the last 3 days or 3 MB total storage size, whichever threshold is reached first.
 
 ### 6. Dual Camera Capture
-- Operators can request photos from the front camera, back camera, or both sequentially.
+- The Guardian Angel can request photos from the front camera, back camera, or both sequentially.
 - The phone camera hardware session is released immediately upon capture to ensure the camera indicator does not remain active.
 
 ---

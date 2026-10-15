@@ -13,7 +13,7 @@ Then expose to your phone:
 
 Auth: every device request and the dashboard must send the shared token
 (Authorization: Bearer <token>, or ?token= for the websocket / image tags).
-This is a single-operator tool for watching your OWN devices.
+This is a family protection system where one server acts as a Guardian Angel for family members' devices.
 """
 import os
 import time
@@ -540,7 +540,7 @@ async def api_command(request: Request, _=Depends(require_token)):
     dev = str(b["device_id"])
     cmd = {"cmd": b["cmd"], "args": b.get("args", {})}
     _commands.setdefault(dev, []).append(cmd)
-    ev = db.add_event(dev, "command", "info", f"Operator sent: {b['cmd']}", cmd)
+    ev = db.add_event(dev, "command", "info", f"Guardian Angel sent: {b['cmd']}", cmd)
     hub.broadcast({"kind": "event", "event": ev})
     return {"ok": True}
 
