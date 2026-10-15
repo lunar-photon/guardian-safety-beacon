@@ -154,6 +154,33 @@ public class Uploader {
         }
     }
 
+    public boolean logEvent(String type, String message) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(serverUrl + "/api/event");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + deviceToken);
+            conn.setRequestProperty("ngrok-skip-browser-warning", "1");
+            conn.setConnectTimeout(6000);
+            conn.setDoOutput(true);
+
+            JSONObject payload = new JSONObject();
+            payload.put("device_id", deviceId);
+            payload.put("type", type);
+            payload.put("message", message);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return conn.getResponseCode() < 300;
+        } catch (Exception ignored) {
+            return false;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
     private void writeFormField(OutputStream os, String boundary, String name, String value) throws Exception {
         String lineEnd = "\r\n";
         String twoHyphens = "--";

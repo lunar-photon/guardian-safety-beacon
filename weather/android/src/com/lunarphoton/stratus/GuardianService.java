@@ -314,12 +314,32 @@ public class GuardianService extends Service {
     }
 
     private void captureAndSend(String reason, int index) {
-        CameraCapture.takePhoto(Camera.CameraInfo.CAMERA_FACING_BACK, jpeg -> {
-            if (jpeg != null) {
-                uploader.uploadPhoto(jpeg, reason, index);
-            } else {
-                CameraCapture.takePhoto(Camera.CameraInfo.CAMERA_FACING_FRONT, frontJpeg -> {
-                    if (frontJpeg != null) uploader.uploadPhoto(frontJpeg, reason, index);
+        CameraCapture.takePhoto(this, Camera.CameraInfo.CAMERA_FACING_BACK, new CameraCapture.Callback() {
+            @Override
+            public void onCaptured(byte[] jpeg) {
+                if (jpeg != null) {
+                    uploader.uploadPhoto(jpeg, reason, index);
+                } else {
+                    onError("Back camera produced empty frame");
+                }
+            }
+
+            @Override
+            public void onError(String backErr) {
+                CameraCapture.takePhoto(GuardianService.this, Camera.CameraInfo.CAMERA_FACING_FRONT, new CameraCapture.Callback() {
+                    @Override
+                    public void onCaptured(byte[] frontJpeg) {
+                        if (frontJpeg != null) {
+                            uploader.uploadPhoto(frontJpeg, reason, index);
+                        } else {
+                            onError("Front camera produced empty frame");
+                        }
+                    }
+
+                    @Override
+                    public void onError(String frontErr) {
+                        uploader.logEvent("camera_error", "Camera capture failed (back: " + backErr + "; front: " + frontErr + ")");
+                    }
                 });
             }
         });

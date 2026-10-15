@@ -342,6 +342,17 @@ async def api_sos(request: Request, who: Principal = Depends(require_principal))
     return {"ok": True}
 
 
+@app.post("/api/event")
+async def api_device_event(request: Request, who: Principal = Depends(require_principal)):
+    body = await request.json()
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
+    t = body.get("type", "info")
+    sev = "warn" if "error" in t.lower() else "info"
+    ev = db.add_event(device_id, t, sev, body.get("message", "Device event"), body)
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True}
+
+
 # ----------------------------------------------------------------------------
 # dashboard API (same token)
 # ----------------------------------------------------------------------------
