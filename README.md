@@ -15,6 +15,50 @@ This repository is developed strictly for lawful, consensual safety purposes:
 
 ---
 
+## Design Rationale and Threat Model
+
+A frequent question in personal safety technology is: why disguise the tracker inside a weather app, and why capture snapshots from both cameras? 
+
+These architectural decisions stem directly from adversary threat modeling and victim-centered safety research.
+
+### Why Disguise the Tracker Inside a Weather App?
+
+1. Attacker Psychology and Device Seizure
+In physical confrontations, kidnapping, domestic harassment, or robbery, an aggressor's first action is almost always to seize and inspect the victim's phone.
+- If the phone contains an obvious app named "Safety Tracker", "SOS Alert", or "Life360", the aggressor will immediately demand its removal, toggle Airplane mode, power down the device, or destroy it.
+- A functional weather application raises zero alarm. An assailant inspecting the device sees live local temperatures, hourly rain probabilities, and atmospheric data. There is no motivation to scrutinize or delete a standard utility.
+
+2. Preventing Retaliation During Escalation
+Forcing a victim to open an app and press a prominent on-screen panic button in front of an aggressive person frequently triggers immediate physical violence. Operating as a background weather utility allows trusted guardians to monitor route deviations, distress signals, or silence alarms without requiring the victim to make conspicuous, dangerous gestures.
+
+3. Eliminating Social Stigma and Scrutiny
+In conservative social environments, colleges, or shared households, having a visible tracking or safety app on one's home screen can lead to unwanted questioning, peer teasing, or victim-blaming. A weather app is completely neutral and socially invisible.
+
+4. Legitimate Justification for Continuous OS Location
+Modern mobile operating systems (Android 10+ and iOS) aggressively terminate background services that demand ongoing location fixes without a clear user-facing purpose.
+- Providing accurate local temperatures, weather alerts, and UV metrics gives the operating system and user an authentic functional reason to grant continuous location permissions without battery-cleaner services killing the process.
+
+---
+
+### Why Dual-Camera Capture (Front and Back)?
+
+When an operator on the laptop requests visual verification during an alert, firing snapshots from both the front and back cameras serves three tactical purposes:
+
+1. Orientation Uncertainty
+The remote watcher has no way of knowing how the phone is physically oriented. It may be resting face-down on a car seat, screen-up on a desk, or tucked into a purse. Triggering both cameras guarantees that whichever lens has an unobstructed line of sight captures usable visual information.
+
+2. Dual Context: Surroundings vs. Identity
+Each lens captures distinct intelligence essential for emergency dispatch:
+- Back camera: Captures the physical environment, such as vehicle interiors, street signs, building facades, license plates, or road landmarks.
+- Front camera: Captures the user perspective, recording who is holding, operating, or standing over the device.
+
+3. Lightweight Intelligence on Degraded Cellular Networks
+Streaming continuous live video consumes immense battery and frequently drops when traveling through low-reception 2G or 3G zones.
+- Two discrete, compressed JPEG snapshots require only ~150 to 250 KB of total bandwidth.
+- They upload reliably even over marginal connections, providing immediate visual confirmation without triggering audible or visible indicators that could endanger the phone owner.
+
+---
+
 ## System Overview
 
 The setup consists of two primary components:
