@@ -71,12 +71,13 @@ export async function fetchNwsAlerts(city) {
 }
 
 export async function geocode(name) {
+  let raw = [];
   try {
     const q = new URLSearchParams({ name, count: 12, language: 'en', format: 'json' });
     const d = await getJSON(`${GEO}?${q}`, { timeout: 6000 });
     const list = d.results || [];
     if (list.length > 0) {
-      return list.map((r) => ({
+      raw = list.map((r) => ({
         id: `${r.latitude.toFixed(3)},${r.longitude.toFixed(3)}`,
         name: r.name,
         admin1: r.admin1 || '',
@@ -89,26 +90,38 @@ export async function geocode(name) {
     }
   } catch (_) {}
 
-  // Fallback to Nominatim search for towns and villages like Vithura
-  try {
-    const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=8`;
-    const d = await getJSON(nomUrl, { timeout: 6000, headers: { 'User-Agent': 'StratusApp/1.0' } });
-    return (d || []).map((r) => {
-      const parts = (r.display_name || '').split(',').map((s) => s.trim());
-      return {
-        id: `${Number(r.lat).toFixed(3)},${Number(r.lon).toFixed(3)}`,
-        name: r.name || parts[0] || name,
-        admin1: parts[parts.length - 3] || '',
-        country: parts[parts.length - 1] || '',
-        cc: (r.address?.country_code || '').toUpperCase(),
-        lat: Number(r.lat),
-        lon: Number(r.lon),
-        pop: 0,
-      };
-    });
-  } catch (_) {
-    return [];
+  // Fallback to Nominatim search for smaller towns and villages
+  if (!raw.length) {
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=8`;
+      const d = await getJSON(nomUrl, { timeout: 6000, headers: { 'User-Agent': 'StratusApp/1.0' } });
+      raw = (d || []).map((r) => {
+        const parts = (r.display_name || '').split(',').map((s) => s.trim());
+        return {
+          id: `${Number(r.lat).toFixed(3)},${Number(r.lon).toFixed(3)}`,
+          name: r.name || parts[0] || name,
+          admin1: parts[parts.length - 3] || '',
+          country: parts[parts.length - 1] || '',
+          cc: (r.address?.country_code || '').toUpperCase(),
+          lat: Number(r.lat),
+          lon: Number(r.lon),
+          pop: 0,
+        };
+      });
+    } catch (_) {}
   }
+
+  // Deduplicate results so administrative duplicates don't show twice
+  const seen = new Set();
+  const deduped = [];
+  for (const item of raw) {
+    const key = `${(item.name || '').toLowerCase()}|${(item.admin1 || '').toLowerCase()}|${(item.country || '').toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(item);
+    }
+  }
+  return deduped;
 }
 
 export async function reverseGeocode(lat, lon) {
