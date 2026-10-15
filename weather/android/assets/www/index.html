@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Stratus</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<!-- shared gradients for the weather icons (not display:none, or Chrome drops the gradients) -->
+<svg id="svg-defs" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="g-sun" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#fff3b0"/><stop offset=".55" stop-color="#ffc93c"/><stop offset="1" stop-color="#ff9b28"/></radialGradient>
+    <linearGradient id="g-moon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffbe8"/><stop offset="1" stop-color="#d9d3ff"/></linearGradient>
+    <linearGradient id="g-cloud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3e1f2"/></linearGradient>
+    <linearGradient id="g-cloud-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c6d8"/><stop offset="1" stop-color="#7b8ba3"/></linearGradient>
+    <linearGradient id="g-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#ffb321"/></linearGradient>
+  </defs>
+</svg>
+
+<div id="backdrop" aria-hidden="true">
+  <div class="bd bd-a"></div>
+  <div class="bd bd-b"></div>
+  <canvas id="sky"></canvas>
+</div>
+
+<!-- Home: every saved city at once -->
+<main id="home" class="view show">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Stratus</h1>
+      <p id="home-sub" class="muted"></p>
+    </div>
+    <div class="actions">
+      <button class="icon-btn" data-act="radar" aria-label="Radar map"></button>
+      <button class="icon-btn" data-act="settings" aria-label="Settings"></button>
+    </div>
+  </header>
+  <div class="ptr" aria-hidden="true"><div class="ptr-spin"></div></div>
+  <div id="home-scroll" class="scroll">
+    <div class="seg-row">
+      <div class="seg" role="tablist" id="mode-seg">
+        <button role="tab" data-mode="cards">Cities</button>
+        <button role="tab" data-mode="compare">Compare</button>
+      </div>
+      <button class="chip-btn" data-act="edit" id="edit-btn">Edit</button>
+    </div>
+    <div id="cards" class="cards"></div>
+    <div id="compare" class="compare" hidden></div>
+    <p id="home-foot" class="foot muted"></p>
+  </div>
+  <button class="fab" data-act="search" aria-label="Add a city"></button>
+</main>
+
+<!-- One city, swipe sideways for the next -->
+<section id="detail" class="view" aria-label="City forecast">
+  <header class="d-top">
+    <button class="icon-btn" data-act="back" aria-label="Back"></button>
+    <div class="d-title"><span id="d-name"></span><div id="d-dots" class="dots"></div></div>
+    <button class="icon-btn" data-act="radar-here" aria-label="Radar for this city"></button>
+  </header>
+  <div id="pager" class="pager"></div>
+</section>
+
+<!-- Radar -->
+<section id="radar" class="view" aria-label="Radar map">
+  <div id="map"></div>
+  <header class="r-top">
+    <button class="icon-btn solid" data-act="back" aria-label="Back"></button>
+    <div class="r-title"><b>Radar</b><span id="r-time" class="muted"></span></div>
+    <button class="icon-btn solid" data-act="r-locate" aria-label="Center on my location"></button>
+  </header>
+  <div class="r-panel">
+    <div class="r-row">
+      <button class="icon-btn solid" id="r-play" aria-label="Play"></button>
+      <input id="r-slider" type="range" min="0" max="0" value="0" aria-label="Radar time">
+    </div>
+    <div class="r-legend"><span>Light</span><i></i><span>Heavy</span></div>
+    <p class="r-credit muted">Radar © RainViewer · Map © Esri, HERE, Garmin, © OpenStreetMap contributors</p>
+  </div>
+</section>
+
+<div id="sheet" class="sheet-layer" hidden>
+  <div class="sheet-scrim" data-act="close-sheet"></div>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-grip"></div>
+    <div class="sheet-body"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

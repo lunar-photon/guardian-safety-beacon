@@ -25,3 +25,7 @@ Thumbs.db
 .vscode/
 *.apk
 android/output/
+weather/build/
+*.log
+server/.safety_token
+server/server.log

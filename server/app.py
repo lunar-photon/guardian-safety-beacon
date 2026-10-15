@@ -300,8 +300,45 @@ async def api_frame(request: Request, who: Principal = Depends(require_principal
     (db.FRAMES_DIR / fname).write_bytes(raw)
     db.add_frame(device_id, ts, fname, kind)
     db.touch_device(device_id)
+    ev = db.add_event(device_id, "frame", "info", f"Webcam frame received ({kind})", {"path": fname})
     hub.broadcast({"kind": "frame", "device_id": device_id,
                    "frame": {"ts": ts, "path": fname, "kind": kind}})
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True}
+
+
+@app.post("/api/upload")
+async def api_upload(request: Request, who: Principal = Depends(require_principal)):
+    form = await request.form()
+    device_id = who.device_id or str(form.get("device_id") or "unknown")
+    reason = str(form.get("reason") or "manual")
+    file = form.get("file")
+    if not file:
+        raise HTTPException(400, "missing file")
+    raw = await file.read() if hasattr(file, "read") else bytes(file)
+    ts = time.time()
+    fname = f"{device_id}_{int(ts*1000)}.jpg".replace("/", "_")
+    (db.FRAMES_DIR / fname).write_bytes(raw)
+    db.add_frame(device_id, ts, fname, reason)
+    db.touch_device(device_id)
+    ev = db.add_event(device_id, "snapshot", "info", f"Snapshot captured ({reason})", {"path": fname})
+    hub.broadcast({"kind": "frame", "device_id": device_id,
+                   "frame": {"ts": ts, "path": fname, "kind": reason}})
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True, "path": fname}
+
+
+@app.post("/api/sos")
+async def api_sos(request: Request, who: Principal = Depends(require_principal)):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    device_id = who.device_id or str(body.get("device_id") or "unknown")
+    db.touch_device(device_id)
+    ev = db.add_event(device_id, "sos", "critical", "🚨 SOS triggered on phone",
+                      {"ts": time.time()})
+    hub.broadcast({"kind": "event", "event": ev})
     return {"ok": True}
 
 
@@ -429,6 +466,17 @@ async def api_command(request: Request, _=Depends(require_token)):
     ev = db.add_event(dev, "command", "info", f"Operator sent: {b['cmd']}", cmd)
     hub.broadcast({"kind": "event", "event": ev})
     return {"ok": True}
+
+
+@app.post("/api/device/{device_id}/interval")
+async def api_device_interval(device_id: str, request: Request, _=Depends(require_token)):
+    b = await request.json()
+    sec = max(2, int(b.get("sec", 10)))
+    cmd = {"cmd": "set_interval", "args": {"sec": sec}}
+    _commands.setdefault(device_id, []).append(cmd)
+    ev = db.add_event(device_id, "command", "info", f"Set location update interval to {sec}s", cmd)
+    hub.broadcast({"kind": "event", "event": ev})
+    return {"ok": True, "interval": sec}
 
 
 @app.get("/api/commands")
@@ -627,7 +675,8 @@ async def _startup():
 # ----------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
-    return (HERE / "static" / "dashboard.html").read_text()
+    html = (HERE / "static" / "dashboard.html").read_text()
+    return html.replace("__DEFAULT_TOKEN__", TOKEN)
 
 
 @app.get("/app")
