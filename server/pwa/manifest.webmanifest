@@ -1,13 +1,13 @@
 {
-  "name": "Notes",
-  "short_name": "Notes",
-  "description": "Personal notes",
+  "name": "Guardian",
+  "short_name": "Guardian",
+  "description": "Personal safety beacon",
   "start_url": "/pwa/",
   "scope": "/pwa/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0e1116",
-  "theme_color": "#0e1116",
+  "background_color": "#F4F5FB",
+  "theme_color": "#5B5BD6",
   "icons": [
     { "src": "/pwa/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]

@@ -3,83 +3,134 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0e1116">
-<title>Notes</title><!-- decoy -->
+<meta name="theme-color" content="#5B5BD6">
+<title>Guardian</title>
 <link rel="manifest" href="/pwa/manifest.webmanifest">
 <link rel="icon" href="/pwa/icon.svg">
 <style>
-  :root{--bg:#0e1116;--panel:#161b22;--line:#2a323d;--txt:#e6edf3;--muted:#8b98a5;
-    --accent:#4f9dff;--crit:#ff4d4f;--ok:#39d98a}
-  *{box-sizing:border-box}
+  :root{
+    --brand:#5B5BD6; --brand2:#8E7BFF; --bg:#F4F5FB; --surface:#FFFFFF;
+    --txt:#15162B; --muted:#6B7280; --ok:#22C55E; --danger:#EF4444; --stroke:#E7E8F0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;min-height:100%;background:var(--bg);color:var(--txt);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-  .wrap{max-width:560px;margin:0 auto;padding:16px;min-height:100vh;display:flex;flex-direction:column}
-  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px;text-transform:uppercase;
-    letter-spacing:.05em}
-  input,textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--txt);
-    border-radius:10px;padding:12px;font:inherit}
-  button{font:inherit;border:0;border-radius:12px;padding:14px;width:100%;font-weight:600;
-    cursor:pointer;margin-top:12px}
-  .primary{background:var(--accent);color:#06121f}
-  .ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
-  .hint{color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px}
-  h1{font-size:19px;margin:6px 0 2px}
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .header{background:linear-gradient(135deg,var(--brand),var(--brand2));
+    color:#fff;padding:44px 24px 30px;border-radius:0 0 30px 30px}
+  .header h1{margin:0;font-size:27px;font-weight:800;letter-spacing:-.3px}
+  .header p{margin:3px 0 0;color:#E9E6FF;font-size:14px}
+  .wrap{max-width:520px;margin:0 auto;padding:18px}
+  .card{background:var(--surface);border:1px solid var(--stroke);border-radius:22px;
+    padding:20px;margin-bottom:16px;box-shadow:0 6px 20px rgba(30,30,80,.05)}
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.04em}
+  input{width:100%;background:#fff;border:1.5px solid var(--stroke);border-radius:14px;
+    padding:14px;font:inherit;color:var(--txt)}
+  input:focus{outline:none;border-color:var(--brand)}
+  button{font:inherit;border:0;border-radius:16px;padding:15px;width:100%;font-weight:700;
+    cursor:pointer;font-size:16px}
+  .primary{background:var(--brand);color:#fff}
+  .tonal{background:#E7E6FF;color:#2A2170}
+  .outline{background:transparent;border:1.5px solid var(--stroke);color:var(--txt)}
+  .sos{background:var(--danger);color:#fff;font-size:20px;padding:22px;border-radius:18px;
+    box-shadow:0 8px 24px rgba(239,68,68,.3)}
+  .ghost{background:transparent;color:var(--muted);box-shadow:none;font-weight:600}
   .row{display:flex;gap:10px}.row>*{flex:1}
+  .statusrow{display:flex;align-items:center;gap:11px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#9AA0AC;flex:none}
+  .dot.on{background:var(--ok)} .dot.off{background:#9AA0AC}
+  .status-title{font-size:19px;font-weight:800}
+  .muted{color:var(--muted);font-size:13px;line-height:1.5}
+  .stat{display:flex;justify-content:space-between;font-size:14px;padding:9px 0;
+    border-bottom:1px solid var(--stroke)}
+  .stat:last-child{border-bottom:0}
+  .stat b{font-weight:700}
+  .hl{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+  .hl a{flex:1 1 30%;text-decoration:none}
+  .hl button{background:#fff;border:1.5px solid var(--stroke);color:var(--txt);font-size:13px;
+    padding:11px 6px;font-weight:600}
+  .warn{background:#FEF2F2;border:1.5px solid #FECACA;color:#B91C1C;border-radius:16px;
+    padding:14px;margin-bottom:16px;font-size:14px;display:none}
+  details summary{color:var(--muted);font-size:13px;cursor:pointer;font-weight:600;padding:6px 0}
+  .link{color:var(--brand);font-weight:600;cursor:pointer}
+  .center{text-align:center}
   video,canvas{display:none}
-
-  /* DECOY: looks like a plain notes app, silently broadcasting underneath */
-  #decoy{flex:1;display:none;flex-direction:column}
-  #decoy .bar{display:flex;align-items:center;justify-content:space-between;padding:6px 2px}
-  #decoy .bar .t{font-size:22px;font-weight:700}
-  #decoy textarea{flex:1;min-height:70vh;resize:none;border:none;background:transparent;
-    font-size:16px;line-height:1.6;outline:none}
-  .tinydot{width:7px;height:7px;border-radius:50%;background:transparent}
-  .tinydot.live{background:var(--ok)} /* only shows if you know to look */
 </style>
 </head>
 <body>
+<div class="header">
+  <h1>🛡️ Guardian</h1>
+  <p id="headerSub">Your personal safety beacon</p>
+</div>
+
 <div class="wrap">
-  <!-- FIRST-RUN SETUP / PAIRING (hidden once paired) -->
-  <section id="setup" style="display:none">
-    <h1>🛡️ Pair this phone</h1>
-    <p class="hint">On your dashboard tap <b>“Pair a device”</b> and scan its QR, or type the
-       code below. After pairing the phone goes silent and just broadcasts. Reopen this
-       screen later: <b>triple-tap the word “Notes.”</b></p>
-    <label>Pairing code</label>
-    <input id="code" placeholder="6-letter code" autocapitalize="characters" autocomplete="off">
-    <label>This device's name</label>
-    <input id="name" placeholder="e.g. Arushi's phone">
-    <button class="primary" id="save">Pair & go silent</button>
-    <p class="hint" id="setupMsg"></p>
-    <div class="row" style="margin-top:6px">
-      <button class="ghost" id="setHome">🏠 Set Home (here)</button>
-      <button class="ghost" id="setOffice">🏢 Set Office (here)</button>
+  <!-- PAIR / SETUP -->
+  <section id="pair" style="display:none">
+    <div class="card">
+      <div class="status-title" style="font-size:17px;margin-bottom:4px">Pair this phone</div>
+      <p class="muted">On the dashboard tap <b>“Pair a device,”</b> then scan its QR with your
+        camera (it opens this page with the code filled in), or type the code here.</p>
+      <label>Pairing code</label>
+      <input id="code" placeholder="6-letter code" autocapitalize="characters" autocomplete="off">
+      <label>This device's name</label>
+      <input id="name" placeholder="e.g. Arushi's phone">
+      <button class="primary" id="save" style="margin-top:16px">Pair &amp; start</button>
+      <p class="muted center" id="setupMsg" style="margin-top:12px"></p>
+      <details style="margin-top:8px">
+        <summary>Advanced — manual setup</summary>
+        <label>Server URL</label>
+        <input id="server" placeholder="https://xxxx.ngrok-free.app">
+        <label>Token</label>
+        <input id="token" type="password" placeholder="SAFETY_TOKEN">
+        <label>Ping interval (seconds)</label>
+        <input id="interval" type="number" value="10" min="3">
+      </details>
     </div>
-    <details style="margin-top:12px">
-      <summary class="hint">Advanced (manual token instead of pairing)</summary>
-      <label>Server URL</label>
-      <input id="server" placeholder="https://xxxx.ngrok-free.app">
-      <label>Token</label>
-      <input id="token" type="password" placeholder="SAFETY_TOKEN">
-      <label>Ping interval (seconds)</label>
-      <input id="interval" type="number" value="10" min="3">
-    </details>
-    <button class="ghost" id="stopBtn" style="margin-top:10px;color:var(--muted)">Stop broadcasting</button>
   </section>
 
-  <!-- DECOY running screen -->
-  <section id="decoy">
-    <div class="bar">
-      <span class="t" id="brand">Notes</span>
-      <span class="tinydot" id="livedot"></span>
+  <!-- MAIN -->
+  <section id="main" style="display:none">
+    <div id="dangerWarn" class="warn">⚠️ <b>Caution:</b> <span id="dangerWarnText"></span></div>
+
+    <div class="card">
+      <div class="statusrow">
+        <span class="dot off" id="dot"></span>
+        <span class="status-title" id="statusTitle">Not tracking</span>
+      </div>
+      <div style="margin-top:14px">
+        <div class="stat"><span>Last sent</span><b id="stSent">—</b></div>
+        <div class="stat"><span>Position</span><b id="stPos">—</b></div>
+        <div class="stat"><span>Battery</span><b id="stBat">—</b></div>
+      </div>
     </div>
-    <textarea id="pad" placeholder="Write a note…"></textarea>
+
+    <button class="sos" id="sos" style="margin-bottom:16px">🚨 SOS</button>
+
+    <div class="row" style="margin-bottom:16px">
+      <button class="tonal" id="startBtn">Start</button>
+      <button class="outline" id="stopBtn">Stop</button>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="font-weight:700;color:var(--txt);margin-bottom:10px">Reach help</div>
+      <div class="hl" id="helplines"></div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="font-weight:700;color:var(--txt);margin-bottom:4px">📍 Places</div>
+      <p class="muted">Arrivals at these are logged automatically.</p>
+      <div class="row" style="margin-top:8px">
+        <button class="outline" id="setHome">🏠 Set Home</button>
+        <button class="outline" id="setOffice">🏢 Set Office</button>
+      </div>
+    </div>
+
+    <p class="muted center"><span class="link" id="changeSettings">Change settings</span></p>
   </section>
 </div>
 
 <video id="cam" playsinline muted></video>
 <canvas id="canvas"></canvas>
-
 <script src="/pwa/app.js"></script>
 </body>
 </html>
