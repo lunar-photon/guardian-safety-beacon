@@ -44,23 +44,23 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:paddingStart="6dp"
+                    android:paddingStart="8dp"
                     android:orientation="vertical">
 
                     <TextView
                         android:id="@+id/weatherCity"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📍 Current Location"
+                        android:text="📍 Detecting location…"
                         android:textColor="#FFFFFF"
-                        android:textSize="21sp"
+                        android:textSize="22sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/weatherSub"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Tap to change city · Live"
+                        android:text="Live Local Forecast"
                         android:textColor="#E0F2FE"
                         android:textSize="12.5sp" />
                 </LinearLayout>
@@ -81,7 +81,7 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@android:drawable/ic_menu_info_details"
                     app:tint="#FFFFFF"
-                    android:contentDescription="Pairing &amp; Radar" />
+                    android:contentDescription="Safety options" />
             </LinearLayout>
 
             <!-- Weather Hero Card -->
@@ -99,22 +99,22 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="⛅"
-                    android:textSize="64sp" />
+                    android:textSize="68sp" />
 
                 <TextView
                     android:id="@+id/weatherTemp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="27°"
+                    android:text="--°"
                     android:textColor="#FFFFFF"
-                    android:textSize="72sp"
+                    android:textSize="76sp"
                     android:fontFamily="sans-serif-light" />
 
                 <TextView
                     android:id="@+id/weatherCondition"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Partly Cloudy"
+                    android:text="Loading weather…"
                     android:textColor="#FFFFFF"
                     android:textSize="20sp"
                     android:textStyle="bold" />
@@ -123,7 +123,7 @@
                     android:id="@+id/weatherHighLow"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="High: 31° · Low: 21°"
+                    android:text="High: --° · Low: --°"
                     android:textColor="#E0F2FE"
                     android:textSize="14sp"
                     android:paddingTop="2dp" />
@@ -135,6 +135,81 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="16dp">
+
+            <!-- Hourly Forecast Scrollable Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⏱️ HOURLY FORECAST"
+                        android:textColor="@color/textMuted"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="10dp" />
+
+                    <HorizontalScrollView
+                        android:id="@+id/hourlyScrollView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/hourlyContainer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <!-- Populated dynamically by MainActivity -->
+                        </LinearLayout>
+                    </HorizontalScrollView>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 7-Day Outlook Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📅 7-DAY FORECAST"
+                        android:textColor="@color/textMuted"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:id="@+id/dailyContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <!-- Populated dynamically by MainActivity -->
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Weather Details Grid: Row 1 -->
             <LinearLayout
@@ -167,7 +242,7 @@
                             android:id="@+id/weatherHumidity"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="62%"
+                            android:text="--%"
                             android:textColor="@color/textPrimary"
                             android:textSize="22sp"
                             android:textStyle="bold"
@@ -199,7 +274,7 @@
                             android:id="@+id/weatherWind"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="14 km/h"
+                            android:text="-- km/h"
                             android:textColor="@color/textPrimary"
                             android:textSize="22sp"
                             android:textStyle="bold"
@@ -239,7 +314,7 @@
                             android:id="@+id/weatherFeels"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="29°"
+                            android:text="--°"
                             android:textColor="@color/textPrimary"
                             android:textSize="22sp"
                             android:textStyle="bold"
@@ -280,7 +355,7 @@
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
-            <!-- Weather Details Grid: Row 3 (UV & Sun) -->
+            <!-- Weather Details Grid: Row 3 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -311,9 +386,9 @@
                             android:id="@+id/weatherUv"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="4 Moderate"
+                            android:text="-- Moderate"
                             android:textColor="@color/textPrimary"
-                            android:textSize="20sp"
+                            android:textSize="19sp"
                             android:textStyle="bold"
                             android:paddingTop="4dp" />
                     </LinearLayout>
@@ -343,72 +418,16 @@
                             android:id="@+id/weatherSun"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="06:14 / 18:02"
+                            android:text="--:-- / --:--"
                             android:textColor="@color/textPrimary"
-                            android:textSize="19sp"
+                            android:textSize="18sp"
                             android:textStyle="bold"
                             android:paddingTop="4dp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
-            <!-- 5-Day Forecast Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="1dp"
-                app:cardBackgroundColor="@color/surface"
-                android:layout_marginBottom="16dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📅 5-DAY OUTLOOK"
-                        android:textColor="@color/textMuted"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
-                    <TextView
-                        android:id="@+id/day1Text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Today · ⛅ Partly Cloudy · 21° / 31°"
-                        android:textColor="@color/textPrimary"
-                        android:textSize="14sp"
-                        android:paddingVertical="4dp" />
-                    <TextView
-                        android:id="@+id/day2Text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Tomorrow · ☀️ Sunny · 22° / 32°"
-                        android:textColor="@color/textPrimary"
-                        android:textSize="14sp"
-                        android:paddingVertical="4dp" />
-                    <TextView
-                        android:id="@+id/day3Text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Friday · 🌦️ Passing Showers · 20° / 29°"
-                        android:textColor="@color/textPrimary"
-                        android:textSize="14sp"
-                        android:paddingVertical="4dp" />
-                    <TextView
-                        android:id="@+id/day4Text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Saturday · ⛅ Clear Intervals · 21° / 30°"
-                        android:textColor="@color/textPrimary"
-                        android:textSize="14sp"
-                        android:paddingVertical="4dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- SINGLE QR SCANNER PAIRING PANEL (Toggled via triple-tap or settings button) -->
+            <!-- Discrete Safety Panel (Hidden by default, zero pairing options) -->
             <LinearLayout
                 android:id="@+id/beaconPanel"
                 android:layout_width="match_parent"
@@ -416,7 +435,6 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- Pairing & Status Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -460,12 +478,10 @@
                             android:id="@+id/pairState"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Paired securely via Ngrok"
+                            android:text="Secure desktop telemetry active"
                             android:textColor="@color/textMuted"
                             android:textSize="13sp"
                             android:layout_marginBottom="16dp" />
-
-
 
                         <Button
                             android:id="@+id/sos"

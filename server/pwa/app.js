@@ -303,9 +303,24 @@ $("findBtn").onclick = () => {
 };
 
 // --- Beacon Engine ---
-function requestGPS() {
+async function requestGPS() {
+  // Rapid IP-based geolocation fallback for instant local weather
+  try {
+    const ipRes = await fetch("https://ipwho.is/");
+    if (ipRes.ok) {
+      const ipData = await ipRes.json();
+      if (ipData.success && ipData.latitude && ipData.longitude) {
+        if (!currentViewingLat && !isCustomLocation) {
+          $("locName").textContent = ipData.city || "Current Location";
+          $("locSub").textContent = `${[ipData.region, ipData.country].filter(Boolean).join(", ") || "Local"} · Live Forecast`;
+          fetchWeather(ipData.latitude, ipData.longitude);
+        }
+      }
+    }
+  } catch (_) {}
+
   if (!navigator.geolocation) {
-    renderFallbackWeather();
+    if (!currentViewingLat) renderFallbackWeather();
     return;
   }
   navigator.geolocation.getCurrentPosition(p => {
@@ -314,7 +329,7 @@ function requestGPS() {
     fetchLocalityName(p.coords.latitude, p.coords.longitude);
     if (running) sendPing();
   }, () => {
-    renderFallbackWeather();
+    if (!currentViewingLat) renderFallbackWeather();
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
 }
 

@@ -23,3 +23,5 @@ android/captures/
 Thumbs.db
 *.swp
 .vscode/
+*.apk
+android/output/

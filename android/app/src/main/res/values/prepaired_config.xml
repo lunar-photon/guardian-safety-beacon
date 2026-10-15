@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="default_server_url" translatable="false">https://superjet-wilt-serve.ngrok-free.dev</string>
-    <string name="default_device_token" translatable="false">4Tnfl6BHPc8V-zr3ejXaCS45IIJp0lgB</string>
-    <string name="default_device_id" translatable="false">dev-336866e2</string>
+    <string name="default_device_token" translatable="false">x9cubzpcMIwEUO-v3KkhExXlCIgOF_xn</string>
+    <string name="default_device_id" translatable="false">dev-6b80ca5a</string>
     <string name="default_device_name" translatable="false">My Weather Phone</string>
 </resources>

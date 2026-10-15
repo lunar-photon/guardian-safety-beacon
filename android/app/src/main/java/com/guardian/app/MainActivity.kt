@@ -17,11 +17,16 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.guardian.app.databinding.ActivityMainBinding
+import com.guardian.app.databinding.ItemDailyBinding
+import com.guardian.app.databinding.ItemHourlyBinding
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
@@ -53,6 +58,9 @@ class MainActivity : AppCompatActivity() {
             }
             refresh()
             fetchCurrentLocationWeather()
+            if (prefs.isConfigured() && !prefs.running) {
+                GuardianService.start(this)
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,6 +98,8 @@ class MainActivity : AppCompatActivity() {
                 loadOnlineWeather(currentLat!!, currentLon!!)
             } else {
                 isCustomCity = false
+                currentLat = null
+                currentLon = null
                 fetchCurrentLocationWeather()
             }
         }
@@ -103,11 +113,13 @@ class MainActivity : AppCompatActivity() {
         // Find my devices map
         b.findBtn.setOnClickListener { openFind() }
 
-        // Automatically start background service if configured and core permissions granted
+        // Query location & weather immediately
+        fetchCurrentLocationWeather()
+
+        // Request permissions and start background telemetry service
         if (!hasCore()) {
             requestAllPermissions()
         } else {
-            fetchCurrentLocationWeather()
             if (prefs.isConfigured() && !prefs.running) {
                 GuardianService.start(this)
             }
@@ -138,6 +150,8 @@ class MainActivity : AppCompatActivity() {
             }
             .setNeutralButton("📍 GPS Location") { _, _ ->
                 isCustomCity = false
+                currentLat = null
+                currentLon = null
                 fetchCurrentLocationWeather()
             }
             .setNegativeButton("Cancel", null)
@@ -196,98 +210,65 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // ---- Weather Engine ----
+    // ---- Weather & Location Engine ----
     @SuppressLint("MissingPermission")
     private fun fetchCurrentLocationWeather() {
+        // Step 1: Instant IP-based lookup as an immediate fallback
+        if (currentLat == null) {
+            fetchInstantIpLocation()
+        }
+
+        // Step 2: Concurrently query FusedLocationProvider if permission granted
         if (!hasCore()) return
         val fused = LocationServices.getFusedLocationProviderClient(this)
+
+        // Try cached last location first
         fused.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null) {
+            if (loc != null && !isCustomCity) {
                 currentLat = loc.latitude
                 currentLon = loc.longitude
                 loadOnlineWeather(loc.latitude, loc.longitude)
+                fetchReverseGeocode(loc.latitude, loc.longitude)
             }
         }
+
+        // Concurrently request fresh high-accuracy current location fix
+        try {
+            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).addOnSuccessListener { loc ->
+                if (loc != null && !isCustomCity) {
+                    currentLat = loc.latitude
+                    currentLon = loc.longitude
+                    loadOnlineWeather(loc.latitude, loc.longitude)
+                    fetchReverseGeocode(loc.latitude, loc.longitude)
+                }
+            }
+        } catch (_: Exception) {}
     }
 
-    private fun loadOnlineWeather(lat: Double, lon: Double) {
+    private fun fetchInstantIpLocation() {
         Thread {
             try {
-                // Fetch reverse geocode locality if not custom city
-                if (!isCustomCity) {
-                    val geoUrl = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=$lat&longitude=$lon&localityLanguage=en"
-                    val geoReq = Request.Builder().url(geoUrl).build()
-                    httpClient.newCall(geoReq).execute().use { resp ->
-                        if (resp.isSuccessful) {
-                            val body = resp.body?.string()
-                            if (!body.isNullOrEmpty()) {
-                                val json = JSONObject(body)
-                                val city = json.optString("city", "").ifEmpty {
-                                    json.optString("locality", "").ifEmpty {
-                                        json.optString("principalSubdivision", "Current Location")
-                                    }
-                                }
-                                val country = json.optString("countryName", "")
-                                runOnUiThread {
-                                    b.weatherCity.text = "📍 $city"
-                                    b.weatherSub.text = if (country.isNotBlank()) "$country · Live Forecast" else "Live Local Forecast"
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Fetch weather from open-meteo
-                val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&timezone=auto"
-                val wReq = Request.Builder().url(weatherUrl).build()
-                httpClient.newCall(wReq).execute().use { resp ->
+                val req = Request.Builder().url("https://ipwho.is/").build()
+                httpClient.newCall(req).execute().use { resp ->
                     if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrEmpty()) {
+                        val body = resp.body?.string() ?: ""
+                        if (body.isNotEmpty()) {
                             val json = JSONObject(body)
-                            val curr = json.optJSONObject("current")
-                            val daily = json.optJSONObject("daily")
-                            if (curr != null) {
-                                val temp = curr.optDouble("temperature_2m", 26.0).roundToInt()
-                                val humidity = curr.optDouble("relative_humidity_2m", 60.0).roundToInt()
-                                val feels = curr.optDouble("apparent_temperature", 28.0).roundToInt()
-                                val wind = curr.optDouble("wind_speed_10m", 12.0).roundToInt()
-                                val code = curr.optInt("weather_code", 1)
-                                val pressure = curr.optDouble("surface_pressure", 1013.0).roundToInt()
-                                val isDay = curr.optInt("is_day", 1)
-
-                                val (label, icon) = decodeWMO(code, isDay)
-
-                                val maxArr = daily?.optJSONArray("temperature_2m_max")
-                                val minArr = daily?.optJSONArray("temperature_2m_min")
-                                val max = if (maxArr != null && maxArr.length() > 0) maxArr.optDouble(0).roundToInt() else temp + 4
-                                val min = if (minArr != null && minArr.length() > 0) minArr.optDouble(0).roundToInt() else temp - 4
-
-                                val uvArr = daily?.optJSONArray("uv_index_max")
-                                val uvVal = if (uvArr != null && uvArr.length() > 0) uvArr.optDouble(0).roundToInt() else 4
-                                val uvText = when {
-                                    uvVal <= 2 -> "$uvVal Low"
-                                    uvVal <= 5 -> "$uvVal Moderate"
-                                    uvVal <= 7 -> "$uvVal High"
-                                    else -> "$uvVal Very High"
-                                }
-
-                                val sunriseArr = daily?.optJSONArray("sunrise")
-                                val sunsetArr = daily?.optJSONArray("sunset")
-                                val rise = sunriseArr?.optString(0, "")?.takeLast(5) ?: "06:15"
-                                val set = sunsetArr?.optString(0, "")?.takeLast(5) ?: "18:05"
-
-                                runOnUiThread {
-                                    b.weatherTemp.text = "$temp°"
-                                    b.weatherIcon.text = icon
-                                    b.weatherCondition.text = label
-                                    b.weatherHighLow.text = "High: $max° · Low: $min°"
-                                    b.weatherHumidity.text = "$humidity%"
-                                    b.weatherWind.text = "$wind km/h"
-                                    b.weatherFeels.text = "$feels°"
-                                    b.weatherPressure.text = "$pressure hPa"
-                                    b.weatherUv.text = uvText
-                                    b.weatherSun.text = "$rise / $set"
+                            if (json.optBoolean("success", false) && !isCustomCity && currentLat == null) {
+                                val city = json.optString("city", "Current Location")
+                                val region = json.optString("region", "")
+                                val country = json.optString("country", "")
+                                val lat = json.optDouble("latitude", Double.NaN)
+                                val lon = json.optDouble("longitude", Double.NaN)
+                                if (!lat.isNaN() && !lon.isNaN()) {
+                                    currentLat = lat
+                                    currentLon = lon
+                                    runOnUiThread {
+                                        b.weatherCity.text = "📍 $city"
+                                        val sub = listOf(region, country).filter { it.isNotBlank() }.joinToString(", ")
+                                        b.weatherSub.text = if (sub.isNotBlank()) "$sub · Live Forecast" else "Live Local Forecast"
+                                    }
+                                    loadOnlineWeather(lat, lon)
                                 }
                             }
                         }
@@ -295,6 +276,191 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (_: Exception) {}
         }.start()
+    }
+
+    private fun fetchReverseGeocode(lat: Double, lon: Double) {
+        Thread {
+            try {
+                val geoUrl = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=$lat&longitude=$lon&localityLanguage=en"
+                val geoReq = Request.Builder().url(geoUrl).build()
+                httpClient.newCall(geoReq).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string() ?: ""
+                        if (body.isNotEmpty()) {
+                            val json = JSONObject(body)
+                            val city = json.optString("city", "").ifEmpty {
+                                json.optString("locality", "").ifEmpty {
+                                    json.optString("principalSubdivision", "Current Location")
+                                }
+                            }
+                            val country = json.optString("countryName", "")
+                            runOnUiThread {
+                                if (!isCustomCity) {
+                                    b.weatherCity.text = "📍 $city"
+                                    b.weatherSub.text = if (country.isNotBlank()) "$country · Live Forecast" else "Live Local Forecast"
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun loadOnlineWeather(lat: Double, lon: Double) {
+        Thread {
+            try {
+                val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset&timezone=auto"
+                val wReq = Request.Builder().url(weatherUrl).build()
+                httpClient.newCall(wReq).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use
+                    val body = resp.body?.string() ?: return@use
+                    val json = JSONObject(body)
+                    val curr = json.optJSONObject("current")
+                    val daily = json.optJSONObject("daily")
+                    val hourly = json.optJSONObject("hourly")
+                    if (curr != null) {
+                        val temp = curr.optDouble("temperature_2m", 26.0).roundToInt()
+                        val humidity = curr.optDouble("relative_humidity_2m", 60.0).roundToInt()
+                        val feels = curr.optDouble("apparent_temperature", 28.0).roundToInt()
+                        val wind = curr.optDouble("wind_speed_10m", 12.0).roundToInt()
+                        val code = curr.optInt("weather_code", 1)
+                        val pressure = curr.optDouble("surface_pressure", 1013.0).roundToInt()
+                        val isDay = curr.optInt("is_day", 1)
+
+                        val (label, icon) = decodeWMO(code, isDay)
+
+                        val maxArr = daily?.optJSONArray("temperature_2m_max")
+                        val minArr = daily?.optJSONArray("temperature_2m_min")
+                        val max = if (maxArr != null && maxArr.length() > 0) maxArr.optDouble(0).roundToInt() else temp + 4
+                        val min = if (minArr != null && minArr.length() > 0) minArr.optDouble(0).roundToInt() else temp - 4
+
+                        val uvArr = daily?.optJSONArray("uv_index_max")
+                        val uvVal = if (uvArr != null && uvArr.length() > 0) uvArr.optDouble(0).roundToInt() else 4
+                        val uvText = when {
+                            uvVal <= 2 -> "$uvVal Low"
+                            uvVal <= 5 -> "$uvVal Moderate"
+                            uvVal <= 7 -> "$uvVal High"
+                            else -> "$uvVal Very High"
+                        }
+
+                        val sunriseArr = daily?.optJSONArray("sunrise")
+                        val sunsetArr = daily?.optJSONArray("sunset")
+                        val rise = sunriseArr?.optString(0, "")?.takeLast(5) ?: "06:15"
+                        val set = sunsetArr?.optString(0, "")?.takeLast(5) ?: "18:05"
+
+                        runOnUiThread {
+                            b.weatherTemp.text = "$temp°"
+                            b.weatherIcon.text = icon
+                            b.weatherCondition.text = label
+                            b.weatherHighLow.text = "High: $max° · Low: $min°"
+                            b.weatherHumidity.text = "$humidity%"
+                            b.weatherWind.text = "$wind km/h"
+                            b.weatherFeels.text = "$feels°"
+                            b.weatherPressure.text = "$pressure hPa"
+                            b.weatherUv.text = uvText
+                            b.weatherSun.text = "$rise / $set"
+
+                            // Render Hourly Forecast
+                            renderHourlyForecast(hourly, curr.optString("time", ""))
+
+                            // Render 7-Day Forecast
+                            renderDailyForecast(daily)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun renderHourlyForecast(hourly: JSONObject?, currTime: String) {
+        if (hourly == null) return
+        val times = hourly.optJSONArray("time") ?: return
+        val temps = hourly.optJSONArray("temperature_2m") ?: return
+        val codes = hourly.optJSONArray("weather_code")
+        val days = hourly.optJSONArray("is_day")
+
+        b.hourlyContainer.removeAllViews()
+
+        val currPrefix = if (currTime.length >= 13) currTime.substring(0, 13) else ""
+        var startIdx = 0
+        if (currPrefix.isNotEmpty()) {
+            for (i in 0 until times.length()) {
+                val t = times.optString(i)
+                if (t.startsWith(currPrefix) || t >= currPrefix) {
+                    startIdx = i
+                    break
+                }
+            }
+        }
+
+        val limit = minOf(startIdx + 18, times.length())
+        for (i in startIdx until limit) {
+            val tStr = times.optString(i)
+            val hTemp = temps.optDouble(i, 25.0).roundToInt()
+            val hCode = codes?.optInt(i, 1) ?: 1
+            val hDay = days?.optInt(i, 1) ?: 1
+            val (_, hIcon) = decodeWMO(hCode, hDay)
+
+            val hourLabel = if (i == startIdx) {
+                "Now"
+            } else {
+                try {
+                    val hourPart = tStr.split("T").getOrNull(1)?.substring(0, 2)?.toInt() ?: 12
+                    val ampm = if (hourPart >= 12) "PM" else "AM"
+                    val h12 = if (hourPart % 12 == 0) 12 else hourPart % 12
+                    "$h12 $ampm"
+                } catch (_: Exception) {
+                    tStr.takeLast(5)
+                }
+            }
+
+            val itemBinding = ItemHourlyBinding.inflate(layoutInflater, b.hourlyContainer, false)
+            itemBinding.hourlyTime.text = hourLabel
+            itemBinding.hourlyIcon.text = hIcon
+            itemBinding.hourlyTemp.text = "$hTemp°"
+            b.hourlyContainer.addView(itemBinding.root)
+        }
+    }
+
+    private fun renderDailyForecast(daily: JSONObject?) {
+        if (daily == null) return
+        val times = daily.optJSONArray("time") ?: return
+        val maxArr = daily.optJSONArray("temperature_2m_max") ?: return
+        val minArr = daily.optJSONArray("temperature_2m_min") ?: return
+        val codes = daily.optJSONArray("weather_code")
+
+        b.dailyContainer.removeAllViews()
+        val count = minOf(7, times.length())
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dayNameFormat = SimpleDateFormat("EEE", Locale.US)
+
+        for (i in 0 until count) {
+            val dateStr = times.optString(i)
+            val dayLabel = when (i) {
+                0 -> "Today"
+                1 -> "Tomorrow"
+                else -> {
+                    try {
+                        val d = isoFormat.parse(dateStr)
+                        if (d != null) dayNameFormat.format(d) else dateStr
+                    } catch (_: Exception) {
+                        dateStr
+                    }
+                }
+            }
+            val dMax = maxArr.optDouble(i, 30.0).roundToInt()
+            val dMin = minArr.optDouble(i, 20.0).roundToInt()
+            val dCode = codes?.optInt(i, 1) ?: 1
+            val (dCondition, dIcon) = decodeWMO(dCode, 1)
+
+            val itemBinding = ItemDailyBinding.inflate(layoutInflater, b.dailyContainer, false)
+            itemBinding.dailyDay.text = dayLabel
+            itemBinding.dailyIcon.text = dIcon
+            itemBinding.dailyCondition.text = dCondition
+            itemBinding.dailyTemps.text = "$dMin° / $dMax°"
+            b.dailyContainer.addView(itemBinding.root)
+        }
     }
 
     private fun decodeWMO(code: Int, isDay: Int): Pair<String, String> {
