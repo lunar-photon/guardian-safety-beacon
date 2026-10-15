@@ -9,8 +9,6 @@ import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
@@ -20,8 +18,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
 import com.guardian.app.databinding.ActivityMainBinding
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -59,23 +55,11 @@ class MainActivity : AppCompatActivity() {
             fetchCurrentLocationWeather()
         }
 
-    private val scanLauncher =
-        registerForActivityResult(ScanContract()) { result ->
-            val contents = result.contents
-            if (contents.isNullOrBlank()) toast("Scan cancelled")
-            else onScanned(contents)
-        }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
         prefs = Prefs(this)
-
-        // Show single-action pairing panel if not configured yet
-        if (!prefs.isConfigured()) {
-            b.beaconPanel.visibility = View.VISIBLE
-        }
 
         // Secret toggle triggers
         val secretTapListener = View.OnClickListener {
@@ -110,14 +94,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Single 1-tap QR Scanner
-        b.scanBtn.setOnClickListener {
-            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                toast("Allow camera, then tap Scan again")
-                permLauncher.launch(arrayOf(Manifest.permission.CAMERA))
-            } else launchScanner()
-        }
-
         // SOS Button
         b.sos.setOnClickListener {
             GuardianService.sos(this)
@@ -143,7 +119,6 @@ class MainActivity : AppCompatActivity() {
     private fun toggleBeaconPanel() {
         val visible = b.beaconPanel.visibility == View.VISIBLE
         b.beaconPanel.visibility = if (visible) View.GONE else View.VISIBLE
-        toast(if (visible) "Weather view" else "Pairing & Status")
     }
 
     // ---- City Search Dialog ----
@@ -337,49 +312,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---- Single QR Scanner Pairing ----
-    private fun launchScanner() {
-        val opts = ScanOptions()
-            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            .setPrompt("Point camera at dashboard pairing QR code")
-            .setBeepEnabled(false)
-            .setOrientationLocked(true)
-        scanLauncher.launch(opts)
-    }
-
-    private fun onScanned(text: String) {
-        val uri = Uri.parse(text.trim())
-        val code = uri.getQueryParameter("code")
-        val scheme = uri.scheme
-        val authority = uri.authority
-        if (code.isNullOrBlank() || scheme.isNullOrBlank() || authority.isNullOrBlank()) {
-            toast("QR code not recognized as a desktop pairing code"); return
-        }
-        prefs.server = "$scheme://$authority"
-        pairWithCode(code)
-    }
-
-    private fun pairWithCode(code: String) {
-        toast("Connecting to desktop…")
-        Thread {
-            val ok = Uploader(prefs).claim(code, prefs.name)
-            runOnUiThread {
-                if (ok) {
-                    toast("Paired with Desktop ✓")
-                    b.beaconPanel.visibility = View.GONE
-                    refresh()
-                    if (!prefs.running && hasCore()) {
-                        GuardianService.start(this)
-                    }
-                } else {
-                    toast("Pairing failed — code expired or unreachable")
-                }
-            }
-        }.start()
-    }
-
     private fun openFind() {
-        if (!prefs.isConfigured()) { toast("Pair with desktop first"); return }
+        if (!prefs.isConfigured()) return
         val url = "${prefs.server}/pwa/find.html#t=${Uri.encode(prefs.token)}&s=${Uri.encode(prefs.server)}"
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -407,9 +341,9 @@ class MainActivity : AppCompatActivity() {
     // ---- UI State ----
     private fun refresh() {
         val configured = prefs.isConfigured()
-        b.status.text = if (configured) "Connected to Desktop" else "Not Paired"
+        b.status.text = if (configured) "Connected to Desktop" else "Active"
         tintDot(if (configured) R.color.ok else R.color.dotGrey)
-        b.pairState.text = if (configured) "Desktop: ${prefs.server}" else "Ready to pair — tap Scan QR below"
+        b.pairState.text = if (configured) "Secure desktop connection active" else "Starting service…"
     }
 
     private fun tintDot(colorRes: Int) {

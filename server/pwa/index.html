@@ -9,7 +9,7 @@
 <link rel="icon" href="/pwa/icon.svg">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
 <style>
   :root {
     --sky-top: #38bdf8;
@@ -472,16 +472,7 @@
       <div style="font-size:12.5px;color:var(--card-muted)" id="serverLabel">Desktop: checking connection…</div>
     </div>
 
-    <!-- Single 1-Tap QR Scanner Button -->
-    <button class="btn-action btn-primary" id="openScannerBtn">📷 Scan Desktop QR Code to Pair</button>
 
-    <!-- Camera viewfinder for QR scan -->
-    <div id="qrScannerBox">
-      <div style="font-size:13px;font-weight:600;color:var(--card-muted)">Point camera at dashboard pairing QR</div>
-      <video id="qrVideo" playsinline muted></video>
-      <canvas id="qrCanvas" style="display:none"></canvas>
-      <button class="btn-action btn-outline" id="stopScannerBtn" style="margin:0;padding:8px">Cancel Camera</button>
-    </div>
 
     <!-- SOS Button -->
     <button class="btn-action btn-danger" id="sos">🚨 SOS Emergency Alert</button>

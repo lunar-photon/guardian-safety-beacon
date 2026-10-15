@@ -465,19 +465,7 @@
                             android:textSize="13sp"
                             android:layout_marginBottom="16dp" />
 
-                        <!-- Single 1-tap QR Scanner Button -->
-                        <Button
-                            android:id="@+id/scanBtn"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="📷 Scan Desktop QR Code to Pair"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="#FFFFFF"
-                            app:backgroundTint="@color/brand"
-                            app:cornerRadius="16dp"
-                            android:paddingVertical="14dp"
-                            android:layout_marginBottom="10dp" />
+
 
                         <Button
                             android:id="@+id/sos"

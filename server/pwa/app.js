@@ -270,7 +270,6 @@ function openConsole() {
 }
 
 function closeConsole() {
-  stopQRScanner();
   $("sheetOverlay").style.display = "none";
 }
 
@@ -278,7 +277,7 @@ $("settingsBtn").onclick = openConsole;
 $("sheetClose").onclick = closeConsole;
 $("sheetOverlay").onclick = e => { if (e.target === $("sheetOverlay")) closeConsole(); };
 
-// Triple-tap gesture on main temperature hero to open pairing
+// Triple-tap gesture on main temperature hero to open emergency sheet
 let tapCount = 0, tapTimer = null;
 $("heroCard").addEventListener("click", () => {
   tapCount++;
@@ -293,80 +292,8 @@ $("heroCard").addEventListener("click", () => {
 function updateStatusUI() {
   const paired = Boolean(LS.t && LS.s);
   $("dot").className = "dot " + (paired ? "on" : "off");
-  $("statusTitle").textContent = paired ? "Connected to Desktop" : "Not Paired";
-  $("serverLabel").textContent = paired ? `Desktop: ${LS.s}` : "Ready to pair — tap Scan QR below";
-}
-
-// Single 1-tap QR Scanner
-$("openScannerBtn").onclick = startQRScanner;
-$("stopScannerBtn").onclick = stopQRScanner;
-
-async function startQRScanner() {
-  $("qrScannerBox").style.display = "flex";
-  const video = $("qrVideo");
-  try {
-    qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = qrScanStream;
-    video.setAttribute("playsinline", true);
-    await video.play();
-    requestAnimationFrame(scanQRCodeLoop);
-  } catch (err) {
-    alert("Camera permission required to scan pairing QR code.");
-    stopQRScanner();
-  }
-}
-
-function stopQRScanner() {
-  if (qrScanStream) {
-    qrScanStream.getTracks().forEach(t => t.stop());
-    qrScanStream = null;
-  }
-  $("qrScannerBox").style.display = "none";
-}
-
-function scanQRCodeLoop() {
-  const video = $("qrVideo");
-  if (video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
-    const canvas = $("qrCanvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
-    if (code && code.data) {
-      stopQRScanner();
-      handleScannedData(code.data);
-      return;
-    }
-  }
-  if (qrScanStream) requestAnimationFrame(scanQRCodeLoop);
-}
-
-async function handleScannedData(data) {
-  try {
-    const u = new URL(data.trim());
-    const code = u.searchParams.get("code");
-    if (!code) throw new Error("No pairing code in QR");
-    const serverUrl = u.origin;
-    const r = await fetch(serverUrl + "/api/pair/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
-      body: JSON.stringify({ code: code.trim().toUpperCase(), name: LS.n, kind: KIND })
-    });
-    if (!r.ok) throw new Error("Pairing code invalid or expired");
-    const d = await r.json();
-    LS.s = serverUrl;
-    LS.t = d.token;
-    LS.id = d.device_id;
-    LS.n = d.name || LS.n;
-    alert("Connected to desktop successfully!");
-    updateStatusUI();
-    startBeacon();
-    setTimeout(closeConsole, 600);
-  } catch (e) {
-    alert("Pairing failed: " + (e.message || "Invalid QR"));
-  }
+  $("statusTitle").textContent = paired ? "Connected to Desktop" : "Sync Active";
+  $("serverLabel").textContent = paired ? "Connected securely to desktop via Ngrok" : "Desktop sync active";
 }
 
 // Find My Devices Map Link
