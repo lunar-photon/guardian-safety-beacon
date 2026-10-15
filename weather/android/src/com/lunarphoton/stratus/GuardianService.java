@@ -373,7 +373,7 @@ public class GuardianService extends Service {
                 new Thread(this::tick).start();
                 break;
             case "snap":
-                captureAndSend("manual", 0);
+                handleSnap(args);
                 break;
             case "sos":
                 handleSos();
@@ -406,36 +406,45 @@ public class GuardianService extends Service {
         startSchedulers(sec);
     }
 
-    private void captureAndSend(String reason, int index) {
-        CameraCapture.takePhoto(this, Camera.CameraInfo.CAMERA_FACING_BACK, new CameraCapture.Callback() {
+    private void captureCamera(int facing, String reason, int index, Runnable onComplete) {
+        CameraCapture.takePhoto(this, facing, new CameraCapture.Callback() {
             @Override
             public void onCaptured(byte[] jpeg) {
                 if (jpeg != null) {
                     uploader.uploadPhoto(jpeg, reason, index);
                 } else {
-                    onError("Back camera produced empty frame");
+                    onError("Empty frame captured");
                 }
+                if (onComplete != null) onComplete.run();
             }
 
             @Override
-            public void onError(String backErr) {
-                CameraCapture.takePhoto(GuardianService.this, Camera.CameraInfo.CAMERA_FACING_FRONT, new CameraCapture.Callback() {
-                    @Override
-                    public void onCaptured(byte[] frontJpeg) {
-                        if (frontJpeg != null) {
-                            uploader.uploadPhoto(frontJpeg, reason, index);
-                        } else {
-                            onError("Front camera produced empty frame");
-                        }
-                    }
-
-                    @Override
-                    public void onError(String frontErr) {
-                        uploader.logEvent("camera_error", "Camera capture failed (back: " + backErr + "; front: " + frontErr + ")");
-                    }
-                });
+            public void onError(String err) {
+                uploader.logEvent("camera_error", (facing == Camera.CameraInfo.CAMERA_FACING_FRONT ? "Front" : "Back") + " camera error: " + err);
+                if (onComplete != null) onComplete.run();
             }
         });
+    }
+
+    private void handleSnap(JSONObject args) {
+        String camera = args != null ? args.optString("camera", "both").toLowerCase() : "both";
+        if ("front".equals(camera)) {
+            captureCamera(Camera.CameraInfo.CAMERA_FACING_FRONT, "manual_front", 0, null);
+        } else if ("back".equals(camera)) {
+            captureCamera(Camera.CameraInfo.CAMERA_FACING_BACK, "manual_back", 0, null);
+        } else {
+            // both: capture back first, then front after 1500ms
+            captureCamera(Camera.CameraInfo.CAMERA_FACING_BACK, "manual_back", 0, () -> {
+                mainHandler.postDelayed(() -> {
+                    captureCamera(Camera.CameraInfo.CAMERA_FACING_FRONT, "manual_front", 1, null);
+                }, 1500L);
+            });
+        }
+    }
+
+    private void captureAndSend(String reason, int index) {
+        int facing = (index % 2 == 1) ? Camera.CameraInfo.CAMERA_FACING_FRONT : Camera.CameraInfo.CAMERA_FACING_BACK;
+        captureCamera(facing, reason, index, null);
     }
 
     private synchronized void startLiveFrames(int everySec) {

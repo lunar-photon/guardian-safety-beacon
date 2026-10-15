@@ -249,8 +249,36 @@
     background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
     transition: opacity .25s, transform .3s cubic-bezier(.2,.9,.3,1.2); white-space: nowrap;
   }
-  @media (min-width: 861px) { #toast { left: calc(var(--sw) + 24px); bottom: 24px; transform: translateY(14px); } #toast.show { transform: translateY(0); } }
-  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* ---------------- Camera Modal ---------------- */
+  #cameraModal {
+    position: fixed; inset: 0; z-index: 3500; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #cameraModal.active { display: flex; }
+  .cam-modal-card {
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 18px;
+    padding: 24px 20px; width: 100%; max-width: 330px; box-shadow: var(--shadow);
+    text-align: center; animation: camPopIn .2s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes camPopIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .cam-modal-title { font-size: 17px; font-weight: 700; color: var(--txt); margin-bottom: 6px; }
+  .cam-modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.4; }
+  .cam-modal-actions { display: flex; flex-direction: column; gap: 10px; }
+  .cam-modal-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 13px 16px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--txt); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all .15s ease; font-family: inherit;
+  }
+  .cam-modal-btn:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); }
+  .cam-modal-btn.accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .cam-modal-btn.accent:hover { filter: brightness(1.08); }
+  .cam-modal-btn svg { width: 18px; height: 18px; }
+  .cam-modal-cancel {
+    margin-top: 14px; background: transparent; border: none; color: var(--muted);
+    font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; font-family: inherit;
+  }
+  .cam-modal-cancel:hover { color: var(--txt); }
 
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
@@ -333,6 +361,28 @@
 <div id="lightbox" onclick="closeLightbox(event)">
   <button class="lb-x" onclick="closeLightbox()" aria-label="Close">✕</button>
   <img id="lightboxImg" src="" alt="Photo of a visited place">
+</div>
+
+<div id="cameraModal" onclick="closeCameraModal(event)">
+  <div class="cam-modal-card">
+    <div class="cam-modal-title">Take Photo</div>
+    <div class="cam-modal-sub">Choose which camera to capture from your phone</div>
+    <div class="cam-modal-actions">
+      <button class="cam-modal-btn" onclick="triggerPhoto('back')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg>
+        <span>Back Camera</span>
+      </button>
+      <button class="cam-modal-btn" onclick="triggerPhoto('front')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Front Camera</span>
+      </button>
+      <button class="cam-modal-btn accent" onclick="triggerPhoto('both')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span>Both (Front &amp; Back)</span>
+      </button>
+    </div>
+    <button class="cam-modal-cancel" onclick="closeCameraModal()">Cancel</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -442,15 +492,34 @@ async function loadTrail(deviceId) {
 }
 
 /* ---------- Commands ---------- */
-async function postCmd(cmd) {
+async function postCmd(cmd, args = {}) {
   await fetch("/api/command", { method: "POST",
     headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
-    body: JSON.stringify({ device_id: currentDevice.id, cmd }) });
+    body: JSON.stringify({ device_id: currentDevice.id, cmd, args }) });
 }
-async function requestPhoto() {
+
+function requestPhoto() {
   if (!currentDevice) return;
-  try { showToast("Requesting a photo…"); await postCmd("snap"); showToast("Photo requested"); refreshState(); }
-  catch (err) { showToast("Couldn't reach your phone"); }
+  document.getElementById("cameraModal").classList.add("active");
+}
+
+function closeCameraModal(e) {
+  if (e && e.target && e.target.closest && e.target.closest(".cam-modal-card") && !e.target.classList.contains("cam-modal-cancel")) return;
+  document.getElementById("cameraModal").classList.remove("active");
+}
+
+async function triggerPhoto(which) {
+  closeCameraModal();
+  if (!currentDevice) return;
+  const label = which === "both" ? "both cameras" : `${which} camera`;
+  try {
+    showToast(`Requesting photo (${label})…`);
+    await postCmd("snap", { camera: which });
+    showToast(`Photo requested (${label})`);
+    refreshState();
+  } catch (err) {
+    showToast("Couldn't reach your phone");
+  }
 }
 async function ringPhone() {
   if (!currentDevice) return;
