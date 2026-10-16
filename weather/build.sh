@@ -31,6 +31,7 @@ echo "[3/6] Linking resources..."
     --java "$BUILD/gen" \
     -A "$SRC/assets" \
     --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" --replace-version \
+    --auto-add-overlay \
     "$BUILD/res/res.zip"
 
 echo "[4/6] Compiling Java..."
