@@ -57,6 +57,7 @@ if [ "$1" == "stop" ]; then
         kill "$(cat "$DATA_DIR/ssh_tunnel.pid")" 2>/dev/null || true
         rm -f "$DATA_DIR/ssh_tunnel.pid"
     fi
+    pkill -f "tunnel_daemon.py" 2>/dev/null || true
     pkill -f "nokey@localhost.run" 2>/dev/null || true
 
     # Kill Cloudflare tunnel
@@ -197,10 +198,9 @@ if [ "$METHOD" == "cloudflare" ]; then
 elif [ "$METHOD" == "local" ]; then
     echo "Running on local Wi-Fi / network only."
 else
-    # Default: localhost.run SSH tunnel
+    # Default: localhost.run native SSH tunnel via supervisor
     echo "Connecting persistent SSH tunnel via localhost.run..."
     SSH_PID_FILE="$DATA_DIR/ssh_tunnel.pid"
-    SSH_LOG="$DATA_DIR/ssh_tunnel.log"
     URL_FILE="$DATA_DIR/tunnel.url"
 
     NEED_START=1
@@ -211,21 +211,16 @@ else
     fi
 
     if [ "$NEED_START" -eq 1 ]; then
-        rm -f "$SSH_LOG"
-        nohup ssh -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=3 \
-            -o ExitOnForwardFailure=yes \
-            -R 80:127.0.0.1:$PORT nokey@localhost.run </dev/null > "$SSH_LOG" 2>&1 &
+        pkill -f "tunnel_daemon.py" 2>/dev/null || true
+        pkill -f "nokey@localhost.run" 2>/dev/null || true
+        nohup python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
         echo $! > "$SSH_PID_FILE"
 
         for i in {1..30}; do
-            URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.lhr\.life' "$SSH_LOG" | head -n 1 || true)
-            if [ -n "$URL" ]; then
-                echo "$URL" > "$URL_FILE"
+            if [ -f "$URL_FILE" ] && [ -s "$URL_FILE" ]; then
                 break
             fi
-            sleep 0.5
+            sleep 0.4
         done
     fi
 
