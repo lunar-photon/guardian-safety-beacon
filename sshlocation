@@ -77,7 +77,7 @@ if [ "$1" == "stop" ]; then
         pkill -f "cloudflared tunnel" 2>/dev/null || true
         echo "Service and public tunnel completely stopped."
     else
-        echo "Service stopped (tracking session expired; requests return 404)."
+        echo "Service stopped."
         echo "Persistent tunnel domain remains reserved so your phone connection is preserved."
         echo "To tear down the tunnel completely, run: sshlocation stop --all"
     fi
@@ -96,8 +96,7 @@ if [ "$1" == "status" ]; then
         TOK="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
         echo "Safety Token     : $TOK"
         echo ""
-        echo "Tracking Session:"
-        curl -s "http://127.0.0.1:$PORT/api/session" | python3 -m json.tool || echo "Server is offline."
+        echo "Tracking Status  : Continuous & Permanent (Never expires)"
         echo ""
         if [ "$METHOD" == "cloudflare" ] && [ -n "$CF_DOMAIN" ]; then
             echo "Public URL       : https://$CF_DOMAIN/?token=$TOK"
@@ -148,12 +147,6 @@ if [ "$SERVER_HEALTH" != "200" ]; then
         sleep 0.4
     done
 fi
-
-# Renew tracking session for 24 hours
-curl -s -X POST "http://127.0.0.1:$PORT/api/session/renew" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{"hours": 24}' > /dev/null 2>&1 || true
 
 # 3. Start tunnel based on method
 PUBLIC_URL=""
@@ -251,11 +244,11 @@ if [ -n "$PUBLIC_URL" ]; then
     echo "Public Tracking  : $PUBLIC_URL"
 fi
 echo "Tunnel Method    : $METHOD"
-echo "Session Expiry   : Active for 24 hours (links return 404 when expired)"
+echo "Hosting Mode     : Continuous & Permanent (Never expires)"
 echo ""
 echo "Commands:"
 echo "  sshlocation status   - View current status and live URLs"
-echo "  sshlocation stop     - Stop service and tunnel (returns 404)"
+echo "  sshlocation stop     - Stop service"
 echo "  sshlocation rebuild  - Recompile APK for current tunnel"
 echo "=================================================="
 echo ""

@@ -93,13 +93,11 @@ def require_admin(request: Request) -> Principal:
     """Dashboard / operator endpoints — master token only."""
     if not _is_master(_extract_token(request)):
         raise HTTPException(status_code=401, detail="admin token required")
-    if not db.is_session_active(TOKEN):
-        raise HTTPException(status_code=404, detail="Session expired or not found")
     return Principal(admin=True)
 
 
 def require_admin_renew(request: Request) -> Principal:
-    """Allow master token to renew even if session is currently expired."""
+    """Allow master token to renew tracking session."""
     if not _is_master(_extract_token(request)):
         raise HTTPException(status_code=401, detail="admin token required")
     return Principal(admin=True)
@@ -107,8 +105,6 @@ def require_admin_renew(request: Request) -> Principal:
 
 def require_principal(request: Request) -> Principal:
     """Device-or-admin endpoints. A device token only authenticates that device."""
-    if not db.is_session_active(TOKEN):
-        raise HTTPException(status_code=404, detail="Session expired or not found")
     tok = _extract_token(request)
     if _is_master(tok):
         return Principal(admin=True)
@@ -851,7 +847,7 @@ def get_frame(name: str, request: Request, _=Depends(require_token)):
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
     tok = ws.query_params.get("token", "")
-    if not db.is_session_active(TOKEN) or not secrets.compare_digest(tok, TOKEN):
+    if not secrets.compare_digest(tok, TOKEN):
         await ws.close(code=4404)
         return
     await hub.join(ws)
@@ -939,8 +935,6 @@ def api_session_end(request: Request, _=Depends(require_admin_renew)):
 # ----------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    if not db.is_session_active(TOKEN):
-        raise HTTPException(status_code=404, detail="404 Not Found: Session expired or no longer hosted")
     tok = request.query_params.get("token", "")
     html = (HERE / "static" / "dashboard.html").read_text()
     return html.replace("__DEFAULT_TOKEN__", TOKEN if tok or lan_ip() in str(request.base_url) else "")

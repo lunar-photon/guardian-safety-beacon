@@ -164,14 +164,6 @@ def get_session(token: str) -> dict | None:
 
 
 def is_session_active(token: str) -> bool:
-    s = get_session(token)
-    if not s:
-        init_session(token, 86400)
-        return True
-    if not s.get("active"):
-        return False
-    if time.time() > float(s.get("expires_at", 0)):
-        return False
     return True
 
 
