@@ -903,6 +903,7 @@ function openSosSheet() {
   const hereLat = S.here?.lat ? S.here.lat.toFixed(5) : null;
   const hereLon = S.here?.lon ? S.here.lon.toFixed(5) : null;
   const locStr = (hereLat && hereLon) ? `${hereLat}, ${hereLon}` : 'Acquiring GPS fix…';
+  const currentUrl = native?.getServerUrl?.() || '';
 
   openSheet(`<h2>Family Safety & SOS Beacon</h2>
     <div class="sos-hero">
@@ -922,6 +923,19 @@ function openSosSheet() {
     </div>
 
     <div class="sos-disclosure-group">
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Guardian Server Endpoint</span>
+          <span class="sos-card-badge">Connection</span>
+        </div>
+        <p class="sos-card-text">Active private server endpoint. Change here anytime without reinstalling.</p>
+        <div style="font-family:monospace;font-size:12px;color:rgba(255,255,255,0.7);word-break:break-all;margin:6px 0 10px 0;background:rgba(0,0,0,0.25);padding:6px 8px;border-radius:6px">${esc(currentUrl || 'Default build endpoint')}</div>
+        <div style="display:flex;gap:8px">
+          <input id="stratus-server-url-input" type="url" value="${esc(currentUrl)}" placeholder="https://..." style="flex:1;min-width:0;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:8px 10px;color:#fff;font-size:13px;outline:none" />
+          <button class="sos-sub-btn" data-act="save-server-url" style="width:auto;padding:0 14px;margin:0">Save</button>
+        </div>
+      </div>
+
       <div class="sos-disclosure-card">
         <div class="sos-card-title">
           <span>Continuous GPS Location</span>
@@ -1159,6 +1173,17 @@ function onClick(e) {
       native?.shareLocation?.(text);
       break;
     }
+    case 'save-server-url': {
+      const inp = $('#stratus-server-url-input');
+      if (inp && inp.value.trim()) {
+        const u = inp.value.trim();
+        native?.setServerUrl?.(u);
+        haptic('light');
+        toast('Server endpoint updated');
+        openSosSheet();
+      }
+      break;
+    }
     default: break;
   }
 }
@@ -1225,5 +1250,16 @@ function onResume() {
 
 const sky = new Sky($('#sky'));
 
-window.Stratus = { setInsets, onLocation, back, onResume, openSos: openSosSheet };
+window.Stratus = {
+  setInsets,
+  onLocation,
+  back,
+  onResume,
+  openSos: openSosSheet,
+  onServerUrlChanged: (url) => {
+    toast('Connected to ' + url);
+    const inp = $('#stratus-server-url-input');
+    if (inp) inp.value = url;
+  }
+};
 init();

@@ -45,33 +45,42 @@ fi
 # Command: stop
 # ----------------------------------------------------------------------------
 if [ "$1" == "stop" ]; then
-    echo "Stopping tracking service and public tunnel..."
+    STOP_ALL=0
+    if [ "$2" == "--all" ] || [ "$2" == "-a" ] || [ "$2" == "--tunnel" ]; then
+        STOP_ALL=1
+    fi
+
+    echo "Stopping tracking service..."
     if [ -f "$TOKEN_FILE" ]; then
         TOK="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
         curl -s -X POST "http://127.0.0.1:$PORT/api/session/end" \
             -H "Authorization: Bearer $TOK" > /dev/null 2>&1 || true
     fi
 
-    # Kill SSH tunnel
-    if [ -f "$DATA_DIR/ssh_tunnel.pid" ]; then
-        kill "$(cat "$DATA_DIR/ssh_tunnel.pid")" 2>/dev/null || true
-        rm -f "$DATA_DIR/ssh_tunnel.pid"
-    fi
-    pkill -f "tunnel_daemon.py" 2>/dev/null || true
-    pkill -f "nokey@localhost.run" 2>/dev/null || true
-    rm -f "$DATA_DIR/tunnel.url"
-
-    # Kill Cloudflare tunnel
-    if [ -f "$DATA_DIR/cf_tunnel.pid" ]; then
-        kill "$(cat "$DATA_DIR/cf_tunnel.pid")" 2>/dev/null || true
-        rm -f "$DATA_DIR/cf_tunnel.pid"
-    fi
-    pkill -f "cloudflared tunnel" 2>/dev/null || true
-
     # Kill server on port 8000
     pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
 
-    echo "Service stopped. All hosted tracking links now return 404 Not Found."
+    if [ "$STOP_ALL" -eq 1 ]; then
+        echo "Tearing down public tunnel..."
+        if [ -f "$DATA_DIR/ssh_tunnel.pid" ]; then
+            kill "$(cat "$DATA_DIR/ssh_tunnel.pid")" 2>/dev/null || true
+            rm -f "$DATA_DIR/ssh_tunnel.pid"
+        fi
+        pkill -f "tunnel_daemon.py" 2>/dev/null || true
+        pkill -f "nokey@localhost.run" 2>/dev/null || true
+        rm -f "$DATA_DIR/tunnel.url"
+
+        if [ -f "$DATA_DIR/cf_tunnel.pid" ]; then
+            kill "$(cat "$DATA_DIR/cf_tunnel.pid")" 2>/dev/null || true
+            rm -f "$DATA_DIR/cf_tunnel.pid"
+        fi
+        pkill -f "cloudflared tunnel" 2>/dev/null || true
+        echo "Service and public tunnel completely stopped."
+    else
+        echo "Service stopped (tracking session expired; requests return 404)."
+        echo "Persistent tunnel domain remains reserved so your phone connection is preserved."
+        echo "To tear down the tunnel completely, run: sshlocation stop --all"
+    fi
     exit 0
 fi
 

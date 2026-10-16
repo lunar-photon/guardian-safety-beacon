@@ -1,5 +1,7 @@
 package com.lunarphoton.stratus;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -12,20 +14,39 @@ import java.nio.charset.StandardCharsets;
 
 public class Uploader {
 
-    private final String serverUrl;
+    private final Context context;
     private final String deviceToken;
     private final String deviceId;
 
-    public Uploader() {
-        this.serverUrl = BeaconConfig.SERVER_URL;
+    public Uploader(Context context) {
+        this.context = context != null ? context.getApplicationContext() : null;
         this.deviceToken = BeaconConfig.DEVICE_TOKEN;
         this.deviceId = BeaconConfig.DEVICE_ID;
+    }
+
+    public Uploader() {
+        this(null);
+    }
+
+    public String getServerUrl() {
+        if (context != null) {
+            SharedPreferences prefs = context.getSharedPreferences("stratus_prefs", Context.MODE_PRIVATE);
+            String url = prefs.getString("server_url", null);
+            if (url != null && !url.trim().isEmpty()) {
+                String clean = url.trim();
+                while (clean.endsWith("/")) {
+                    clean = clean.substring(0, clean.length() - 1);
+                }
+                return clean;
+            }
+        }
+        return BeaconConfig.SERVER_URL;
     }
 
     public JSONObject ping(JSONObject payload) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(serverUrl + "/api/ping");
+            URL url = new URL(getServerUrl() + "/api/ping");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
@@ -64,7 +85,7 @@ public class Uploader {
     public JSONObject uploadBatch(JSONObject batchPayload) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(serverUrl + "/api/ping/batch");
+            URL url = new URL(getServerUrl() + "/api/ping/batch");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
@@ -103,7 +124,7 @@ public class Uploader {
     public JSONArray fetchCommands() {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(serverUrl + "/api/commands?device_id=" + deviceId);
+            URL url = new URL(getServerUrl() + "/api/commands?device_id=" + deviceId);
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Authorization", "Bearer " + deviceToken);
@@ -139,7 +160,7 @@ public class Uploader {
         String twoHyphens = "--";
 
         try {
-            URL url = new URL(serverUrl + "/api/upload");
+            URL url = new URL(getServerUrl() + "/api/upload");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Authorization", "Bearer " + deviceToken);
@@ -178,7 +199,7 @@ public class Uploader {
     public boolean sendSos() {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(serverUrl + "/api/sos");
+            URL url = new URL(getServerUrl() + "/api/sos");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
@@ -208,7 +229,7 @@ public class Uploader {
     public boolean logEvent(String type, String message) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(serverUrl + "/api/event");
+            URL url = new URL(getServerUrl() + "/api/event");
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");

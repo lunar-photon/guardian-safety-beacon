@@ -291,7 +291,7 @@ public class GuardianService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        uploader = new Uploader();
+        uploader = new Uploader(this);
         offlineStorage = new OfflineStorage(getApplicationContext());
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);

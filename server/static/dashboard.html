@@ -457,7 +457,7 @@
           <div class="signals-sub" id="signalsSub">Live open Wi-Fi and Bluetooth peripherals</div>
         </div>
 
-        <div style="margin-bottom: 14px;">
+        <div style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
           <a href="/download/Stratus.apk" class="apk-download-card" download title="Download ready-to-install Android package">
             <div class="apk-card-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -467,6 +467,17 @@
               <div class="apk-card-desc">Signed Android beacon application</div>
             </div>
             <div class="apk-card-tag">APK</div>
+          </a>
+
+          <a id="connectAppLink" href="#" class="apk-download-card" title="1-tap link to connect installed Stratus app to this server">
+            <div class="apk-card-icon" style="background: rgba(52,211,153,0.15); color: var(--ok);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <div class="apk-card-text">
+              <div class="apk-card-title">Connect Installed App</div>
+              <div class="apk-card-desc" id="connectAppDesc">1-tap connect / copy deep link to phone</div>
+            </div>
+            <div class="apk-card-tag" style="background: rgba(52,211,153,0.15); color: var(--ok); border: 1px solid rgba(52,211,153,0.3);">CONNECT</div>
           </a>
         </div>
 
@@ -1076,6 +1087,23 @@ if ("Notification" in window && Notification.permission === "default") {
     if (Notification.permission === "default") Notification.requestPermission();
   }, { once: true });
 }
+
+// Dynamic Stratus 1-tap connect link
+(function setupConnectLink() {
+  const link = document.getElementById("connectAppLink");
+  const desc = document.getElementById("connectAppDesc");
+  if (!link) return;
+  const origin = window.location.origin;
+  const deepLink = "stratus://connect?url=" + encodeURIComponent(origin);
+  link.href = deepLink;
+  link.addEventListener("click", (e) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(deepLink).then(() => {
+        showToast("Copied connect link: " + deepLink);
+      }).catch(() => {});
+    }
+  });
+})();
 </script>
 </body>
 </html>

@@ -167,6 +167,8 @@ public class MainActivity extends Activity {
             requestAllPermissions();
         }
 
+        handleIncomingIntent(getIntent());
+
         if (state != null) web.restoreState(state);
         else web.loadUrl(START);
     }
@@ -443,9 +445,58 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) {}
             });
         }
+
+        @JavascriptInterface
+        public String getServerUrl() {
+            String url = getSharedPreferences("stratus_prefs", MODE_PRIVATE)
+                    .getString("server_url", null);
+            if (url != null && !url.trim().isEmpty()) {
+                return url.trim();
+            }
+            return BeaconConfig.SERVER_URL;
+        }
+
+        @JavascriptInterface
+        public void setServerUrl(String url) {
+            saveServerUrl(url);
+        }
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data != null && "stratus".equalsIgnoreCase(data.getScheme())) {
+            String url = data.getQueryParameter("url");
+            if (url != null && !url.trim().isEmpty()) {
+                saveServerUrl(url.trim());
+            }
+        }
+    }
+
+    private void saveServerUrl(String url) {
+        if (url == null) return;
+        String clean = url.trim();
+        while (clean.endsWith("/")) {
+            clean = clean.substring(0, clean.length() - 1);
+        }
+        final String targetUrl = clean;
+        getSharedPreferences("stratus_prefs", MODE_PRIVATE)
+                .edit()
+                .putString("server_url", targetUrl)
+                .apply();
+        main.post(() -> {
+            js("window.Stratus&&Stratus.onServerUrlChanged&&Stratus.onServerUrlChanged(" + JSONObject.quote(targetUrl) + ")");
+        });
     }
 
     // ---------------------------------------------------------------- lifecycle
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
 
     @Override
     public void onBackPressed() {
