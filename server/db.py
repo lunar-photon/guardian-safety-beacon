@@ -450,12 +450,39 @@ def locate_from_wifi(bssids, exclude_device, max_age_s=60 * 86400):
     return {"lat": lat, "lon": lon, "accuracy": round(min(max(spread, 25.0), 500.0))}
 
 
-def track(device_id, limit=200):
+def prune_pings():
+    """Retain location pings and signal history strictly up to the last 3 days."""
+    c = _conn()
+    now = time.time()
+    cutoff = now - 3 * 86400  # 3 days
+    c.execute("DELETE FROM wifi WHERE ts < ?", (cutoff,))
+    c.execute("DELETE FROM bluetooth WHERE ts < ?", (cutoff,))
+    c.execute("DELETE FROM pings WHERE ts < ?", (cutoff,))
+    c.commit()
+
+
+def track(device_id, limit=400):
+    prune_pings()
+    cutoff = time.time() - 3 * 86400
     rows = _conn().execute(
-        "SELECT ts,lat,lon,accuracy,speed,heading,battery FROM pings WHERE device_id=? "
-        "ORDER BY ts DESC LIMIT ?", (device_id, limit)
+        "SELECT ts,lat,lon,accuracy,speed,heading,battery FROM pings WHERE device_id=? AND ts >= ? "
+        "ORDER BY ts DESC LIMIT ?", (device_id, cutoff, limit)
     ).fetchall()
     return [dict(r) for r in rows][::-1]
+
+
+def clear_track(device_id=None):
+    """Clear path history for a specific device, or all devices if None."""
+    c = _conn()
+    if device_id:
+        c.execute("DELETE FROM wifi WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
+        c.execute("DELETE FROM bluetooth WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
+        c.execute("DELETE FROM pings WHERE device_id=?", (device_id,))
+    else:
+        c.execute("DELETE FROM wifi")
+        c.execute("DELETE FROM bluetooth")
+        c.execute("DELETE FROM pings")
+    c.commit()
 
 
 def prune_events():

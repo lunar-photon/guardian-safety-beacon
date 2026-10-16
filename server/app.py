@@ -588,6 +588,20 @@ def api_track(device_id: str, request: Request, _=Depends(require_token)):
     return {"track": db.track(device_id, 400)}
 
 
+@app.post("/api/track/{device_id}/clear")
+def api_clear_track_post(device_id: str, request: Request, _=Depends(require_token)):
+    db.clear_track(device_id)
+    hub.broadcast({"kind": "track_cleared", "device_id": device_id})
+    return {"ok": True, "message": "Path history cleared"}
+
+
+@app.delete("/api/track/{device_id}")
+def api_clear_track_del(device_id: str, request: Request, _=Depends(require_token)):
+    db.clear_track(device_id)
+    hub.broadcast({"kind": "track_cleared", "device_id": device_id})
+    return {"ok": True, "message": "Path history cleared"}
+
+
 @app.post("/api/geofence")
 async def api_add_geofence(request: Request, _=Depends(require_token)):
     b = await request.json()
@@ -875,10 +889,12 @@ async def watchdog():
                                   f"{d['name']} went silent "
                                   f"({int(OFFLINE_TIMEOUT)}s no signal)", None)
                 hub.broadcast({"kind": "event", "event": ev})
-            # every ~5 min, learn frequently-visited spots for each known device
+            # every ~5 min, learn frequently-visited spots and enforce 3-day retention
             if cycles % 20 == 0:
                 for d in db.list_devices():
                     auto_learn_places(d["id"])
+                db.prune_pings()
+                db.prune_events()
         except Exception as e:  # never let the loop die
             print("watchdog error:", e)
 

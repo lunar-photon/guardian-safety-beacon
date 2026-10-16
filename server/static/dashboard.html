@@ -322,6 +322,14 @@
     background: var(--accent); color: var(--accent-ink);
   }
 
+  .trail-retention-box {
+    margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .retention-title { font-size: 12.5px; font-weight: 650; color: var(--txt); }
+  .retention-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
   /* ---------------- Emergency Helpline Banner ---------------- */
   #emergencyBanner {
     position: fixed; top: 16px; left: calc(var(--sw) + 20px); right: 20px; z-index: 2500;
@@ -423,8 +431,11 @@
       <button class="btn primary" onclick="centerOnMe()" title="Center map on my location">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Center</span>
       </button>
-      <button class="btn" id="trailBtn" onclick="toggleTrail()" title="Show my path">
+      <button class="btn" id="trailBtn" onclick="toggleTrail()" title="Toggle path trail (past 3 days)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18c4 0 4-12 8-12s4 12 8 12"/></svg><span>Path</span>
+      </button>
+      <button class="btn" id="clearTrailBtn" onclick="clearPathHistory()" title="Clear recorded path history" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg><span>Clear Path</span>
       </button>
       <button class="btn" onclick="requestPhoto()" title="Ask my phone for a photo of where it is">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg><span>Photo</span>
@@ -447,6 +458,13 @@
     <div class="body">
       <div id="viewStats">
         <div class="scards" id="statCards"><div class="empty" style="grid-column:1/-1">Loading your statistics…</div></div>
+        <div class="trail-retention-box">
+          <div>
+            <div class="retention-title">Path History (Past 3 Days)</div>
+            <div class="retention-sub">Older paths purged automatically</div>
+          </div>
+          <button class="btn" onclick="clearPathHistory()" title="Clear path history for this device" style="padding:6px 12px;font-size:12px;">Clear Path</button>
+        </div>
       </div>
       <div id="viewPlaces" style="display:none">
         <div id="placesList"><div class="empty">No places yet — they build up as your phone reports locations.</div></div>
@@ -707,6 +725,8 @@ function centerOnMe() {
 async function toggleTrail() {
   showTrail = !showTrail;
   document.getElementById("trailBtn").classList.toggle("active", showTrail);
+  const clearBtn = document.getElementById("clearTrailBtn");
+  if (clearBtn) clearBtn.style.display = showTrail ? "inline-flex" : "none";
   if (!showTrail) { if (trailLine) { map.removeLayer(trailLine); trailLine = null; } }
   else if (currentDevice) loadTrail(currentDevice.id);
 }
@@ -721,6 +741,32 @@ async function loadTrail(deviceId) {
     if (trailLine) map.removeLayer(trailLine);
     if (pts.length > 1) trailLine = L.polyline(pts, { color: "#5b8cff", weight: 3, opacity: 0.8 }).addTo(map);
   } catch (err) {}
+}
+
+async function clearPathHistory() {
+  if (!currentDevice) {
+    showToast("No active device selected");
+    return;
+  }
+  if (!confirm("Clear recorded path history for " + (currentDevice.name || "this device") + "?")) return;
+  try {
+    const res = await fetch(`/api/track/${encodeURIComponent(currentDevice.id)}/clear`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + TOKEN }
+    });
+    if (res.ok) {
+      if (trailLine) {
+        map.removeLayer(trailLine);
+        trailLine = null;
+      }
+      showToast("Path history cleared");
+      loadStats();
+    } else {
+      showToast("Failed to clear path history");
+    }
+  } catch (err) {
+    showToast("Error clearing path history");
+  }
 }
 
 /* ---------- Commands ---------- */
@@ -1052,7 +1098,12 @@ function connectWebSocket() {
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
-      if (["ping","refresh","frame","event","helpline_alert"].includes(m.kind)) {
+      if (["ping","refresh","frame","event","helpline_alert","track_cleared"].includes(m.kind)) {
+        if (m.kind === "track_cleared") {
+          if (trailLine) { map.removeLayer(trailLine); trailLine = null; }
+          loadStats();
+          return;
+        }
         if (m.kind === "helpline_alert") {
           showEmergencyBanner(m);
           showToast(`EMERGENCY: ${m.name || "Phone"} stuck at ${m.zone || "suspicious location"}!`);
