@@ -50,9 +50,44 @@ with zipfile.ZipFile(sys.argv[1], 'a') as z:
 " "$BUILD/unaligned.apk" "$BUILD/dex/classes.dex"
 
 echo "[6/6] Aligning and signing..."
+KEYSTORE_DIR="$HOME/.config/stratus"
+KEYSTORE_FILE="$KEYSTORE_DIR/release.keystore"
+KEYSTORE_PASS_FILE="$KEYSTORE_DIR/keystore.pass"
+KEY_ALIAS="stratus"
+KEYTOOL="$(dirname "$JAVA_BIN")/keytool"
+
+if [ ! -f "$KEYSTORE_FILE" ]; then
+    mkdir -p "$KEYSTORE_DIR"
+    BUILD_USER="$(git config user.name 2>/dev/null || echo "${USER:-Guardian}")"
+    [ -z "$BUILD_USER" ] && BUILD_USER="Guardian"
+    KEY_PASS="stratus_$(openssl rand -hex 8 2>/dev/null || date +%s%N | cut -c1-16)"
+    printf '%s' "$KEY_PASS" > "$KEYSTORE_PASS_FILE"
+    chmod 600 "$KEYSTORE_PASS_FILE"
+    
+    echo "[Keystore] Generating personal release signing key for $BUILD_USER..."
+    "$KEYTOOL" -genkeypair \
+        -keystore "$KEYSTORE_FILE" \
+        -alias "$KEY_ALIAS" \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 10000 \
+        -storepass "$KEY_PASS" \
+        -keypass "$KEY_PASS" \
+        -dname "CN=$BUILD_USER, OU=Family Protection, O=$BUILD_USER Safety, C=IN"
+    chmod 600 "$KEYSTORE_FILE"
+fi
+
+KEY_PASS="$(cat "$KEYSTORE_PASS_FILE" 2>/dev/null || echo "stratus")"
+
 "$JAVA_BIN" -jar "$SIGNER_JAR" --apks "$BUILD/unaligned.apk" \
-    --out "$BUILD/dist" --allowResign > "$BUILD/sign.log"
-SIGNED=$(find "$BUILD/dist" -name '*.apk' | head -n 1)
+    --out "$BUILD/dist" \
+    --ks "$KEYSTORE_FILE" \
+    --ksAlias "$KEY_ALIAS" \
+    --ksPass "$KEY_PASS" \
+    --ksKeyPass "$KEY_PASS" \
+    --allowResign > "$BUILD/sign.log"
+
+SIGNED=$(find "$BUILD/dist" -name '*aligned-signed.apk' -o -name '*aligned-debugSigned.apk' -o -name '*.apk' | head -n 1)
 [ -f "$SIGNED" ] || { cat "$BUILD/sign.log"; echo "Signing failed"; exit 1; }
 
 mkdir -p "$HOME/Downloads"
