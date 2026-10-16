@@ -672,6 +672,23 @@ async def api_rename_place(pid: int, request: Request, _=Depends(require_token))
     return {"ok": True}
 
 
+@app.post("/api/places/clear")
+def api_clear_places(request: Request, _=Depends(require_token)):
+    dev_id = request.query_params.get("device_id")
+    db.clear_places(dev_id)
+    if dev_id:
+        _place_state.pop(dev_id, None)
+    else:
+        _place_state.clear()
+    hub.broadcast({"kind": "places_cleared", "device_id": dev_id})
+    return {"ok": True, "message": "Places cleared"}
+
+
+@app.delete("/api/places/clear")
+def api_clear_places_delete(request: Request, _=Depends(require_token)):
+    return api_clear_places(request)
+
+
 @app.delete("/api/places/{pid}")
 def api_del_place(pid: int, request: Request, _=Depends(require_token)):
     db.delete_place(pid)

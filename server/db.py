@@ -133,6 +133,8 @@ def init():
         c.execute("ALTER TABLE devices ADD COLUMN revoked INTEGER DEFAULT 0")
     if "kind" not in cols:
         c.execute("ALTER TABLE devices ADD COLUMN kind TEXT")
+    if "places_cleared_at" not in cols:
+        c.execute("ALTER TABLE devices ADD COLUMN places_cleared_at REAL DEFAULT 0")
     wifi_cols = {r[1] for r in c.execute("PRAGMA table_info(wifi)").fetchall()}
     if "open" not in wifi_cols:
         c.execute("ALTER TABLE wifi ADD COLUMN open INTEGER DEFAULT 0")
@@ -351,6 +353,19 @@ def rename_place(place_id, name, kind=None):
 def delete_place(place_id):
     c = _conn()
     c.execute("DELETE FROM places WHERE id=?", (place_id,))
+    c.commit()
+
+
+def clear_places(device_id=None):
+    """Clear learned / most-visited places for a specific device, or all devices if None."""
+    c = _conn()
+    now = time.time()
+    if device_id:
+        c.execute("DELETE FROM places WHERE device_id=?", (device_id,))
+        c.execute("UPDATE devices SET places_cleared_at=? WHERE id=?", (now, device_id))
+    else:
+        c.execute("DELETE FROM places")
+        c.execute("UPDATE devices SET places_cleared_at=?", (now,))
     c.commit()
 
 
