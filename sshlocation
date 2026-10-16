@@ -13,10 +13,7 @@
 set -e
 
 # Target workspace directory
-REPO_DIR="/home/lunarphoton/Downloads/arushi"
-if [ ! -d "$REPO_DIR" ]; then
-    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-fi
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SERVER_DIR="$REPO_DIR/server"
 DATA_DIR="$SERVER_DIR/data"
