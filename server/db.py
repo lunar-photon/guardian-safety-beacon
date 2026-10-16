@@ -487,16 +487,38 @@ def track(device_id, limit=400):
 
 
 def clear_track(device_id=None):
-    """Clear path history for a specific device, or all devices if None."""
+    """Clear path history for a specific device, or all devices if None, preserving the latest position fix."""
     c = _conn()
     if device_id:
-        c.execute("DELETE FROM wifi WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
-        c.execute("DELETE FROM bluetooth WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
-        c.execute("DELETE FROM pings WHERE device_id=?", (device_id,))
+        row = c.execute(
+            "SELECT id FROM pings WHERE device_id=? AND lat IS NOT NULL ORDER BY ts DESC LIMIT 1",
+            (device_id,)
+        ).fetchone()
+        latest_id = row[0] if row else None
+        if latest_id:
+            c.execute("DELETE FROM wifi WHERE ping_id IN (SELECT id FROM pings WHERE device_id=? AND id != ?)", (device_id, latest_id))
+            c.execute("DELETE FROM bluetooth WHERE ping_id IN (SELECT id FROM pings WHERE device_id=? AND id != ?)", (device_id, latest_id))
+            c.execute("DELETE FROM pings WHERE device_id=? AND id != ?", (device_id, latest_id))
+        else:
+            c.execute("DELETE FROM wifi WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
+            c.execute("DELETE FROM bluetooth WHERE ping_id IN (SELECT id FROM pings WHERE device_id=?)", (device_id,))
+            c.execute("DELETE FROM pings WHERE device_id=?", (device_id,))
     else:
-        c.execute("DELETE FROM wifi")
-        c.execute("DELETE FROM bluetooth")
-        c.execute("DELETE FROM pings")
+        devs = [r[0] for r in c.execute("SELECT DISTINCT device_id FROM pings WHERE lat IS NOT NULL").fetchall()]
+        keep_ids = []
+        for dev in devs:
+            row = c.execute("SELECT id FROM pings WHERE device_id=? AND lat IS NOT NULL ORDER BY ts DESC LIMIT 1", (dev,)).fetchone()
+            if row:
+                keep_ids.append(row[0])
+        if keep_ids:
+            placeholders = ",".join("?" for _ in keep_ids)
+            c.execute(f"DELETE FROM wifi WHERE ping_id NOT IN ({placeholders})", keep_ids)
+            c.execute(f"DELETE FROM bluetooth WHERE ping_id NOT IN ({placeholders})", keep_ids)
+            c.execute(f"DELETE FROM pings WHERE id NOT IN ({placeholders})", keep_ids)
+        else:
+            c.execute("DELETE FROM wifi")
+            c.execute("DELETE FROM bluetooth")
+            c.execute("DELETE FROM pings")
     c.commit()
 
 
