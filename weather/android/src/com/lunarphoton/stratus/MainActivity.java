@@ -411,6 +411,38 @@ public class MainActivity extends Activity {
                 return "";
             }
         }
+
+        @JavascriptInterface
+        public void triggerSos() {
+            main.post(() -> {
+                GuardianService.sos(MainActivity.this);
+                if (web != null) web.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            });
+        }
+
+        @JavascriptInterface
+        public void callHelpline(String number) {
+            main.post(() -> {
+                try {
+                    String num = (number != null && !number.isEmpty()) ? number : "112";
+                    Intent dialIntent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + num));
+                    dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(dialIntent);
+                } catch (Exception ignored) {}
+            });
+        }
+
+        @JavascriptInterface
+        public void shareLocation(String text) {
+            main.post(() -> {
+                try {
+                    Intent sendIntent = new Intent(Intent.ACTION_SEND);
+                    sendIntent.putExtra(Intent.EXTRA_TEXT, text != null ? text : "");
+                    sendIntent.setType("text/plain");
+                    startActivity(Intent.createChooser(sendIntent, "Emergency Location"));
+                } catch (Exception ignored) {}
+            });
+        }
     }
 
     // ---------------------------------------------------------------- lifecycle

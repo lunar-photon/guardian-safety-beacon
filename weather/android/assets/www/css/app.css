@@ -497,6 +497,55 @@ h1, h2, h3, p { margin: 0; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 #toast button { color: #0b5cad; font-weight: 600; }
 
+/* ---------------------------------------------------------------- SOS & Safety Interface */
+.sos-banner-btn {
+  display: block; width: 100%; margin-top: 14px; padding: 12px 16px;
+  background: rgba(220, 38, 38, 0.16); border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 14px; color: #fca5a5; font-size: 14px; font-weight: 500;
+  text-align: center; transition: background .15s;
+}
+.sos-banner-btn:active { background: rgba(220, 38, 38, 0.28); }
+
+.sos-hero {
+  background: linear-gradient(145deg, rgba(185, 28, 28, 0.25), rgba(15, 23, 42, 0.65));
+  border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 18px;
+  padding: 16px; margin-bottom: 16px; text-align: center;
+}
+.sos-hero-title { font-size: 17px; font-weight: 600; color: #fee2e2; margin-bottom: 4px; }
+.sos-hero-desc { font-size: 13px; color: #fca5a5; line-height: 1.4; margin-bottom: 14px; }
+
+.sos-btn-trigger {
+  width: 100%; padding: 14px 18px; border-radius: 14px;
+  background: #dc2626; color: #ffffff; font-size: 15px; font-weight: 600;
+  letter-spacing: 0.02em; display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.4); transition: transform .1s, background .15s;
+}
+.sos-btn-trigger:active { transform: scale(0.98); background: #b91c1c; }
+
+.sos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.sos-sub-btn {
+  padding: 11px 10px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text); font-size: 13px; font-weight: 500; text-align: center;
+  transition: background .15s;
+}
+.sos-sub-btn:active { background: rgba(255, 255, 255, 0.16); }
+
+.sos-disclosure-group { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.sos-disclosure-card {
+  background: var(--surface-2); border-radius: 14px; padding: 14px;
+  border: 1px solid var(--hair);
+}
+.sos-card-title {
+  font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sos-card-badge {
+  font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08); color: var(--text-2); text-transform: uppercase;
+}
+.sos-card-text { font-size: 13px; color: var(--text-2); line-height: 1.5; margin: 0; }
+
 @media (min-width: 700px) {
   .tiles { grid-template-columns: repeat(3, 1fr); }
   .hero-temp { font-size: 120px; }

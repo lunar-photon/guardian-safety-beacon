@@ -895,7 +895,73 @@ function openSettings() {
       <p class="about">Stratus ${esc(ver)}<br>
       Forecasts and air quality by <button data-ext="https://open-meteo.com/">Open-Meteo.com</button> (CC BY 4.0), radar by <button data-ext="https://www.rainviewer.com/">RainViewer</button>, maps © Esri, HERE, Garmin and <button data-ext="https://www.openstreetmap.org/copyright">OpenStreetMap</button> contributors, place names by BigDataCloud.<br>
       Official alerts come from the US National Weather Service for US locations. Elsewhere Stratus shows <b>forecast advisories</b>: thresholds applied to the forecast, not official warnings. Always follow your national weather service.</p>
+      <button class="sos-banner-btn" data-act="open-sos">Family Safety & SOS Beacon Disclosures</button>
     </div>`);
+}
+
+function openSosSheet() {
+  const hereLat = S.here?.lat ? S.here.lat.toFixed(5) : null;
+  const hereLon = S.here?.lon ? S.here.lon.toFixed(5) : null;
+  const locStr = (hereLat && hereLon) ? `${hereLat}, ${hereLon}` : 'Acquiring GPS fix…';
+
+  openSheet(`<h2>Family Safety & SOS Beacon</h2>
+    <div class="sos-hero">
+      <div class="sos-hero-title">Emergency Response & Safety Disclosures</div>
+      <div class="sos-hero-desc">Stratus incorporates an emergency safety beacon linked directly to your family's Guardian Angel server. In an emergency, trigger instant alerts or call helplines below.</div>
+      <button class="sos-btn-trigger" data-act="trigger-sos">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+        Trigger Emergency SOS
+      </button>
+      <div class="sos-grid">
+        <button class="sos-sub-btn" data-act="call-112">Call Helpline 112</button>
+        <button class="sos-sub-btn" data-act="call-1091">Call Women 1091</button>
+      </div>
+      <div class="sos-grid" style="margin-top:8px">
+        <button class="sos-sub-btn" data-act="share-loc" style="grid-column: span 2">Share My Location (${esc(locStr)})</button>
+      </div>
+    </div>
+
+    <div class="sos-disclosure-group">
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Continuous GPS Location</span>
+          <span class="sos-card-badge">Safety</span>
+        </div>
+        <p class="sos-card-text">Used to keep your family's Guardian Angel updated with your live whereabouts, detect arrivals at safe places (home, university, workplace), and automatically detect if you are stuck or stationary in a suspicious area.</p>
+      </div>
+
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Emergency Camera Capture</span>
+          <span class="sos-card-badge">Evidentiary</span>
+        </div>
+        <p class="sos-card-text">When SOS is triggered or during emergency outreach, front and rear cameras capture rapid verification snapshots to record surroundings, license plates, and visual context for first responders and family protection.</p>
+      </div>
+
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Emergency SMS & Helpline Calls</span>
+          <span class="sos-card-badge">Helpline</span>
+        </div>
+        <p class="sos-card-text">If you remain stationary inside a danger zone for over 120 seconds or trigger SOS, Stratus automatically prepares an emergency SMS with exact GPS coordinates and Google Maps link, and launches the emergency dialer (112).</p>
+      </div>
+
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Wireless & Bluetooth Telemetry</span>
+          <span class="sos-card-badge">Indoor Context</span>
+        </div>
+        <p class="sos-card-text">Scans open Wi-Fi access points and Bluetooth peripherals to provide indoor positioning context when GPS satellite signals are obstructed.</p>
+      </div>
+
+      <div class="sos-disclosure-card">
+        <div class="sos-card-title">
+          <span>Privacy & Data Sovereignty</span>
+          <span class="sos-card-badge">Private</span>
+        </div>
+        <p class="sos-card-text">All data is transmitted strictly to your family's private laptop server. Offline logs stored on the phone are automatically purged after 3 days. Zero third-party data tracking, advertising, or corporate cloud brokers.</p>
+      </div>
+    </div>`, { full: true });
 }
 
 function openAlerts(id) {
@@ -1069,6 +1135,30 @@ function onClick(e) {
     case 'c-range': S.compare.range = t.dataset.k; save('compare', S.compare); renderCompare(); break;
     case 'c-city': toggleCompareCity(id); break;
     case 'r-locate': locate().then((h) => { if (h) radar.showMe(h.lat, h.lon); }); break;
+    case 'open-sos': openSosSheet(); break;
+    case 'trigger-sos': {
+      native?.triggerSos?.();
+      haptic('long');
+      toast('🚨 SOS Alert Dispatched to Guardian Angel');
+      break;
+    }
+    case 'call-112': {
+      native?.callHelpline?.('112');
+      break;
+    }
+    case 'call-1091': {
+      native?.callHelpline?.('1091');
+      break;
+    }
+    case 'share-loc': {
+      const lat = S.here?.lat;
+      const lon = S.here?.lon;
+      const text = (lat && lon)
+        ? `Emergency Location: https://maps.google.com/?q=${lat},${lon} (${lat.toFixed(5)}, ${lon.toFixed(5)})`
+        : 'Emergency Location: acquiring GPS fix…';
+      native?.shareLocation?.(text);
+      break;
+    }
     default: break;
   }
 }
@@ -1135,5 +1225,5 @@ function onResume() {
 
 const sky = new Sky($('#sky'));
 
-window.Stratus = { setInsets, onLocation, back, onResume };
+window.Stratus = { setInsets, onLocation, back, onResume, openSos: openSosSheet };
 init();
