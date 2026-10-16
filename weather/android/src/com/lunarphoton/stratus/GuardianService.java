@@ -10,11 +10,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.hardware.Camera;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
+import android.telephony.SmsManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.Ringtone;
@@ -588,6 +591,9 @@ public class GuardianService extends Service {
             case "sos":
                 handleSos();
                 break;
+            case "emergency_helpline":
+                handleEmergencyHelpline(args);
+                break;
             case "set_interval":
             case "interval":
                 int sec = args != null ? args.optInt("sec", BeaconConfig.INTERVAL_SEC) : BeaconConfig.INTERVAL_SEC;
@@ -602,6 +608,80 @@ public class GuardianService extends Service {
                 stopLiveFrames();
                 break;
         }
+    }
+
+    private void handleEmergencyHelpline(JSONObject args) {
+        String number = args != null ? args.optString("number", "112") : "112";
+        String zone = args != null ? args.optString("zone", "Suspicious Area") : "Suspicious Area";
+        String message = args != null ? args.optString("message", "") : "";
+        double lat = (lastLocation != null) ? lastLocation.getLatitude() : 0.0;
+        double lon = (lastLocation != null) ? lastLocation.getLongitude() : 0.0;
+        if (args != null && args.has("lat") && args.has("lon")) {
+            lat = args.optDouble("lat", lat);
+            lon = args.optDouble("lon", lon);
+        }
+
+        String locationUrl = "https://maps.google.com/?q=" + lat + "," + lon;
+        if (message == null || message.isEmpty()) {
+            message = "EMERGENCY: Stuck at suspicious location '" + zone + "'. Coordinates: " + lat + ", " + lon + ". Map: " + locationUrl;
+        }
+
+        // 1. Send SMS if SEND_SMS permission is granted
+        try {
+            if (checkSelfPermission(android.Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+                SmsManager smsManager = SmsManager.getDefault();
+                if (smsManager != null && !number.isEmpty()) {
+                    smsManager.sendTextMessage(number, null, message, null, null);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. High-priority notification with intent to call helpline and view location
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            Intent dialIntent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
+            dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            PendingIntent dialPending = PendingIntent.getActivity(
+                    this, 201, dialIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(locationUrl));
+            mapIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            PendingIntent mapPending = PendingIntent.getActivity(
+                    this, 202, mapIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            Notification.Builder nb = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(this, CHANNEL)
+                    : new Notification.Builder(this);
+
+            nb.setContentTitle("EMERGENCY: Stuck at " + zone)
+              .setContentText("Reaching out to Helpline " + number + " with location")
+              .setSmallIcon(android.R.drawable.stat_notify_error)
+              .setPriority(Notification.PRIORITY_MAX)
+              .setAutoCancel(true)
+              .setContentIntent(dialPending)
+              .addAction(android.R.drawable.ic_menu_call, "Call " + number, dialPending)
+              .addAction(android.R.drawable.ic_menu_mapmode, "View Map", mapPending);
+
+            if (nm != null) {
+                nm.notify(1099, nb.build());
+            }
+
+            // Launch dialer so phone interface is illuminated and ready to call
+            startActivity(dialIntent);
+        } catch (Exception ignored) {}
+
+        // 3. Capture evidence from both cameras
+        captureCamera(Camera.CameraInfo.CAMERA_FACING_BACK, "helpline_back", 0, () -> {
+            mainHandler.postDelayed(() -> {
+                captureCamera(Camera.CameraInfo.CAMERA_FACING_FRONT, "helpline_front", 1, null);
+            }, 1500L);
+        });
+
+        // 4. Trigger distress ping and log event
+        new Thread(() -> {
+            uploader.logEvent("helpline_outreach", "Stuck in suspicious zone " + zone + " - reached out to helpline with location");
+            tick();
+        }).start();
     }
 
     private synchronized void updateLocationInterval(int sec) {

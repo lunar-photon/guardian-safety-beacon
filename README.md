@@ -185,6 +185,18 @@ The lower section of the dashboard broadcasts live position insights:
 - The Guardian Angel can request photos from the front camera, back camera, or both sequentially.
 - The phone camera hardware session is released immediately upon capture to ensure the camera indicator does not remain active.
 
+### 7. Automatic Danger Zone Dwell Detection and Helpline Outreach
+If a family member remains stationary inside a designated danger zone or suspicious area:
+- Dwell Threshold: If a device stays within a danger geofence for more than 120 seconds (2 minutes) while stationary (speed under 1.0 m/s or movement under 40 meters), an automatic emergency escalation triggers immediately.
+- Phone Automation: Stratus automatically drafts an emergency SMS with exact GPS coordinates and Google Maps link, illuminates the device dialer pre-loaded with India Emergency 112, posts a high-priority heads-up alert with one-tap dialing and navigation, and captures dual-camera photos.
+- Server Dispatch: The server logs a critical emergency event in SQLite, broadcasts a live helpline alert over WebSocket connections, appends an audit record to server/data/helpline_dispatches.log, and fires outbound webhooks if configured.
+- Guardian Angel Dashboard: A prominent emergency banner alerts the monitor with the exact dwell duration, coordinates, direct map link, and instant one-click dialing buttons for India Helpline 112 and Women Helpline 1091.
+
+### 8. Wireless Signal Intelligence (Open Wi-Fi and Bluetooth)
+- Nearby open Wi-Fi networks and Bluetooth Low Energy beacons are scanned and broadcast to the dashboard.
+- Provides crucial environmental context for indoor locations where GPS satellite locks are degraded or obstructed.
+
+
 ---
 
 ## Security Model

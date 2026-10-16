@@ -215,20 +215,163 @@ def auto_learn_places(device_id):
     return created
 
 
-def check_geofences(device_id, lat, lon):
+_danger_dwell: dict[str, dict[int, dict]] = {}
+STUCK_DANGER_TIMEOUT_S = float(os.environ.get("STUCK_DANGER_TIMEOUT_S", "120"))  # seconds stationary in danger zone -> helpline outreach
+HELPLINE_PRIMARY = os.environ.get("HELPLINE_PRIMARY", "112")
+HELPLINE_WEBHOOK_URL = os.environ.get("HELPLINE_WEBHOOK_URL", "")
+
+
+def dispatch_helpline_alert(device_id: str, name: str, lat: float, lon: float, accuracy: float, zone_name: str, dwell_s: float):
+    dev_name = name or device_id
+    maps_url = f"https://maps.google.com/?q={lat:.6f},{lon:.6f}"
+    dwell_min = int(dwell_s // 60)
+    dwell_txt = f"{dwell_min}m" if dwell_min > 0 else f"{int(dwell_s)}s"
+
+    msg = (f"EMERGENCY: Phone '{dev_name}' is STUCK at suspicious location '{zone_name}' "
+           f"({dwell_txt} stationary). Reaching out to helpline ({HELPLINE_PRIMARY}) with coordinates: "
+           f"{lat:.5f}, {lon:.5f}. Live Map: {maps_url}")
+
+    # 1. Log critical event in database
+    ev = db.add_event(
+        device_id, "helpline", "critical", msg,
+        {
+            "zone": zone_name,
+            "lat": lat,
+            "lon": lon,
+            "accuracy": accuracy,
+            "dwell_s": dwell_s,
+            "maps_url": maps_url,
+            "helpline": HELPLINE_PRIMARY,
+            "dispatched": True,
+        }
+    )
+
+    # 2. Enqueue emergency commands for the phone (immediate response)
+    _commands.setdefault(device_id, []).append({
+        "cmd": "emergency_helpline",
+        "args": {
+            "number": HELPLINE_PRIMARY,
+            "zone": zone_name,
+            "lat": lat,
+            "lon": lon,
+            "message": f"EMERGENCY: Stuck at {zone_name}. Coordinates: {lat:.5f}, {lon:.5f}. Map: {maps_url}"
+        }
+    })
+    _commands.setdefault(device_id, []).append({
+        "cmd": "snap",
+        "args": {"camera": "both"}
+    })
+
+    # 3. Log persistent dispatch audit record
+    try:
+        dispatch_log = HERE / "data" / "helpline_dispatches.log"
+        dispatch_entry = {
+            "ts": time.time(),
+            "time_iso": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "device_id": device_id,
+            "name": dev_name,
+            "zone": zone_name,
+            "lat": lat,
+            "lon": lon,
+            "dwell_seconds": dwell_s,
+            "helpline": HELPLINE_PRIMARY,
+            "maps_url": maps_url,
+        }
+        with open(dispatch_log, "a", encoding="utf-8") as f:
+            f.write(json.dumps(dispatch_entry) + "\n")
+    except Exception as e:
+        print(f"[Helpline] Error logging dispatch: {e}")
+
+    # 4. Webhook dispatch if configured
+    webhook_url = HELPLINE_WEBHOOK_URL
+    if not webhook_url and (HERE / "data" / "helpline_webhook.url").exists():
+        webhook_url = (HERE / "data" / "helpline_webhook.url").read_text().strip()
+
+    if webhook_url:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                webhook_url,
+                data=json.dumps(dispatch_entry).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "Guardian-Helpline-Dispatcher/1.0"}
+            )
+            urllib.request.urlopen(req, timeout=5)
+        except Exception as e:
+            print(f"[Helpline] Webhook dispatch error: {e}")
+
+    # 5. Broadcast alert to all connected Guardian Angel dashboards over WebSocket
+    hub.broadcast({
+        "kind": "helpline_alert",
+        "device_id": device_id,
+        "name": dev_name,
+        "zone": zone_name,
+        "lat": lat,
+        "lon": lon,
+        "dwell_s": dwell_s,
+        "maps_url": maps_url,
+        "helpline": HELPLINE_PRIMARY,
+        "event": ev
+    })
+    hub.broadcast({"kind": "event", "event": ev})
+
+
+def check_geofences(device_id, lat, lon, speed=None, accuracy=None, name=None):
     fences = db.list_geofences()
     state = _zone_state.setdefault(device_id, {})
+    dwell_map = _danger_dwell.setdefault(device_id, {})
+    now = time.time()
+
     for f in fences:
         inside = _haversine_m(lat, lon, f["lat"], f["lon"]) <= f["radius"]
         was = state.get(f["id"])
         state[f["id"]] = inside
+
+        if f["kind"] == "danger":
+            if inside:
+                if f["id"] not in dwell_map:
+                    dwell_map[f["id"]] = {
+                        "first_seen": now,
+                        "last_seen": now,
+                        "entry_lat": lat,
+                        "entry_lon": lon,
+                        "last_lat": lat,
+                        "last_lon": lon,
+                        "alerted": False
+                    }
+                else:
+                    entry = dwell_map[f["id"]]
+                    entry["last_seen"] = now
+                    entry["last_lat"] = lat
+                    entry["last_lon"] = lon
+
+                    dwell_s = now - entry["first_seen"]
+                    dist_moved = _haversine_m(lat, lon, entry["entry_lat"], entry["entry_lon"])
+                    # Stationary criteria: speed < 1.0 m/s or distance moved < 40 meters
+                    is_stationary = (speed is None or speed < 1.0) or (dist_moved < 40.0)
+
+                    if dwell_s >= STUCK_DANGER_TIMEOUT_S and is_stationary and not entry["alerted"]:
+                        entry["alerted"] = True
+                        dispatch_helpline_alert(
+                            device_id=device_id,
+                            name=name,
+                            lat=lat,
+                            lon=lon,
+                            accuracy=accuracy,
+                            zone_name=f["name"],
+                            dwell_s=dwell_s
+                        )
+            else:
+                dwell_map.pop(f["id"], None)
+
         if was is None:
             continue  # first sighting, don't alert
+
         if f["kind"] == "danger" and inside and not was:
             ev = db.add_event(device_id, "geofence", "critical",
                               f"Entered DANGER zone '{f['name']}'",
                               {"fence": f["name"]})
             hub.broadcast({"kind": "event", "event": ev})
+
         if f["kind"] == "safe" and was and not inside:
             ev = db.add_event(device_id, "geofence", "warn",
                               f"Left SAFE zone '{f['name']}'",
@@ -253,9 +396,6 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     accuracy = body.get("accuracy")
     extra = body.get("extra")
 
-    # Drain pending commands for this device so they are piggybacked on the ping response (saves battery)
-    pending = _commands.pop(device_id, [])
-
     # No GPS (laptops) or only a coarse IP guess? Try the personal WiFi map first.
     wifi = body.get("wifi") or []
     bluetooth = body.get("bluetooth") or []
@@ -276,8 +416,11 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     )
 
     if lat is not None and lon is not None:
-        check_geofences(device_id, lat, lon)
+        check_geofences(device_id, lat, lon, speed=body.get("speed"), accuracy=accuracy, name=name)
         check_places(device_id, lat, lon)
+
+    # Drain pending commands after geofence evaluation so any emergency helpline commands are returned immediately
+    pending = _commands.pop(device_id, [])
 
     hub.broadcast({"kind": "ping", "device_id": device_id, "ping": {
         "ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
@@ -301,7 +444,6 @@ async def api_ping_batch(request: Request, who: Principal = Depends(require_prin
     if not pings:
         return {"ok": True, "count": 0, "commands": []}
 
-    pending = _commands.pop(device_id, [])
     last_fix = None
 
     for p in pings:
@@ -322,12 +464,13 @@ async def api_ping_batch(request: Request, who: Principal = Depends(require_prin
             battery, extra, wifi, bluetooth,
         )
         if lat is not None and lon is not None:
-            check_geofences(device_id, lat, lon)
+            check_geofences(device_id, lat, lon, speed=speed, accuracy=accuracy, name=name)
             check_places(device_id, lat, lon)
             last_fix = {"ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
                         "speed": speed, "battery": battery, "name": name, "wifi": wifi, "bluetooth": bluetooth}
 
     db.touch_device(device_id, name)
+    pending = _commands.pop(device_id, [])
     if last_fix:
         hub.broadcast({"kind": "ping", "device_id": device_id, "ping": last_fix})
     hub.broadcast({"kind": "refresh"})

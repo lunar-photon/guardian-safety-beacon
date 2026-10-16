@@ -322,10 +322,73 @@
     background: var(--accent); color: var(--accent-ink);
   }
 
+  /* ---------------- Emergency Helpline Banner ---------------- */
+  #emergencyBanner {
+    position: fixed; top: 16px; left: calc(var(--sw) + 20px); right: 20px; z-index: 2500;
+    background: linear-gradient(135deg, rgba(220,38,38,0.95), rgba(153,27,27,0.95));
+    border: 1px solid rgba(254,202,202,0.4); border-radius: 16px; padding: 14px 18px;
+    box-shadow: 0 16px 40px rgba(220,38,38,0.35); color: #fff;
+    display: none; align-items: center; justify-content: space-between; gap: 16px;
+    animation: bannerDrop .3s cubic-bezier(0.16,1,0.3,1);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  @media (max-width: 860px) {
+    #emergencyBanner { left: 12px; right: 12px; top: 12px; flex-direction: column; align-items: stretch; text-align: left; }
+  }
+  @keyframes bannerDrop { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .eb-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .eb-icon {
+    width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.2);
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .eb-icon svg { width: 22px; height: 22px; color: #fff; }
+  .eb-content { min-width: 0; }
+  .eb-title { font-size: 13.5px; font-weight: 750; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .eb-badge {
+    padding: 2px 7px; border-radius: 999px; background: #fff; color: #b91c1c; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .eb-sub { font-size: 12px; opacity: 0.92; margin-top: 3px; font-family: var(--mono); }
+  .eb-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+  .eb-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 10px;
+    background: #fff; color: #991b1b; font-size: 12px; font-weight: 700; text-decoration: none;
+    border: none; cursor: pointer; transition: transform .12s, background .12s; font-family: inherit;
+  }
+  .eb-btn:hover { background: #fef2f2; transform: translateY(-1px); }
+  .eb-btn.secondary { background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  .eb-btn.secondary:hover { background: rgba(255,255,255,0.28); }
+  .eb-close { background: transparent; border: none; color: #fff; opacity: 0.7; cursor: pointer; padding: 4px; font-size: 18px; margin-left: 4px; }
+  .eb-close:hover { opacity: 1; }
+
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
+
+<!-- Emergency Helpline Alert Banner -->
+<div id="emergencyBanner">
+  <div class="eb-left">
+    <div class="eb-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div class="eb-content">
+      <div class="eb-title"><span id="ebTitleText">Phone Stuck at Suspicious Location</span><span class="eb-badge">HELPLINE DISPATCHED</span></div>
+      <div class="eb-sub" id="ebSubText">Waiting for telemetry…</div>
+    </div>
+  </div>
+  <div class="eb-actions">
+    <a id="ebCall112" href="tel:112" class="eb-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Call 112
+    </a>
+    <a id="ebCall1091" href="tel:1091" class="eb-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Call 1091
+    </a>
+    <a id="ebMaps" href="#" target="_blank" class="eb-btn secondary">Map</a>
+    <button class="eb-close" onclick="closeEmergencyBanner()" title="Dismiss">✕</button>
+  </div>
+</div>
 
 <div id="map"></div>
 
@@ -465,6 +528,7 @@
 const LS_TOKEN_KEY = "guardian_token";
 let TOKEN = "";
 let map, beaconMarker = null, accuracyCircle = null, trailLine = null, homeMarker = null;
+let dangerZonesGroup = L.layerGroup();
 let showTrail = false;
 let currentDevice = null, currentPos = null, latestFrames = [], lastStats = null;
 let hasCentered = false, sheetOpen = false, activeTab = "stats";
@@ -489,9 +553,72 @@ function initMap() {
   map = L.map("map", { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
   L.control.zoom({ position: "bottomright" }).addTo(map);
+  dangerZonesGroup.addTo(map);
+
+  map.on("contextmenu", (e) => {
+    const name = prompt("Name this Suspicious / Danger Zone (e.g. Unlit Alley, High-Risk Zone):");
+    if (!name || !name.trim()) return;
+    fetch("/api/geofence", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), lat: e.latlng.lat, lon: e.latlng.lng, radius: 300, kind: "danger" })
+    }).then(r => r.json()).then(() => {
+      showToast(`Suspicious zone '${name}' registered`);
+      refreshState();
+    });
+  });
 }
 const beaconIcon = L.divIcon({ className: "beacon-wrap", html: '<div class="beacon"><div class="beacon-ring"></div><div class="beacon-core"></div></div>', iconSize: [22,22], iconAnchor: [11,11] });
 const homeIcon = L.divIcon({ className: "beacon-wrap", html: '<div class="home-pin"></div>', iconSize: [14,14], iconAnchor: [7,13] });
+
+function updateGeofences(fences) {
+  dangerZonesGroup.clearLayers();
+  for (const f of fences || []) {
+    if (f.lat == null || f.lon == null) continue;
+    const isDanger = f.kind === "danger";
+    const circle = L.circle([f.lat, f.lon], {
+      radius: f.radius || 300,
+      color: isDanger ? "#ef4444" : "#34d399",
+      weight: 1.5,
+      opacity: isDanger ? 0.75 : 0.6,
+      fillColor: isDanger ? "#ef4444" : "#34d399",
+      fillOpacity: isDanger ? 0.12 : 0.08
+    });
+    circle.bindTooltip(`${isDanger ? "⚠️ Suspicious / Danger Zone: " : "Safe Zone: "}${f.name}`, { sticky: true });
+    dangerZonesGroup.addLayer(circle);
+  }
+}
+
+function showEmergencyBanner(info) {
+  const eb = document.getElementById("emergencyBanner");
+  if (!eb) return;
+  document.getElementById("ebTitleText").textContent = `Phone Stuck at Suspicious Location: ${info.zone || "Danger Zone"}`;
+  const dwellTxt = info.dwell_s ? (info.dwell_s >= 60 ? `${Math.round(info.dwell_s/60)} min` : `${Math.round(info.dwell_s)}s`) : "Stationary";
+  const latStr = info.lat != null ? info.lat.toFixed(5) : "";
+  const lonStr = info.lon != null ? info.lon.toFixed(5) : "";
+  document.getElementById("ebSubText").textContent = `${info.name || "Phone"} stationary for ${dwellTxt} at ${latStr}, ${lonStr} — automated helpline dispatch active`;
+  document.getElementById("ebCall112").href = `tel:${info.helpline || "112"}`;
+  document.getElementById("ebCall1091").href = "tel:1091";
+  document.getElementById("ebMaps").href = info.maps_url || `https://maps.google.com/?q=${info.lat},${info.lon}`;
+  eb.style.display = "flex";
+
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.start(); osc.stop(ctx.currentTime + 0.35);
+  } catch (_) {}
+}
+
+function closeEmergencyBanner() {
+  const eb = document.getElementById("emergencyBanner");
+  if (eb) eb.style.display = "none";
+}
 
 /* ---------- Live state ---------- */
 async function refreshState() {
@@ -509,9 +636,26 @@ async function refreshState() {
     latestFrames = data.frames || [];
     updateHUD(dev, data.now, data.offline_timeout);
     updateMap(dev);
+    updateGeofences(data.geofences || []);
     updateEvents(data.events || []);
     updateHomeDistance();
     renderSignals(dev);
+
+    // Check recent events for active helpline alert
+    const recentHelpline = (data.events || []).find(e => e.type === "helpline" && (data.now - (e.ts || 0) < 900));
+    if (recentHelpline) {
+      let edata = {};
+      try { edata = typeof recentHelpline.data === "string" ? JSON.parse(recentHelpline.data) : (recentHelpline.data || {}); } catch (_) {}
+      showEmergencyBanner({
+        zone: edata.zone || "Suspicious Area",
+        name: dev.name || dev.id,
+        lat: edata.lat || dev.last_fix?.lat,
+        lon: edata.lon || dev.last_fix?.lon,
+        dwell_s: edata.dwell_s,
+        helpline: edata.helpline || "112",
+        maps_url: edata.maps_url
+      });
+    }
   } catch (err) { console.error("refresh error:", err); }
 }
 
@@ -897,7 +1041,18 @@ function connectWebSocket() {
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
-      if (["ping","refresh","frame","event"].includes(m.kind)) {
+      if (["ping","refresh","frame","event","helpline_alert"].includes(m.kind)) {
+        if (m.kind === "helpline_alert") {
+          showEmergencyBanner(m);
+          showToast(`EMERGENCY: ${m.name || "Phone"} stuck at ${m.zone || "suspicious location"}!`);
+          if ("Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("EMERGENCY HELPLINE ALERT", {
+                body: `${m.name || "Phone"} is stuck at suspicious location '${m.zone}'. Helpline outreach initiated.`
+              });
+            } catch (_) {}
+          }
+        }
         if (m.kind === "ping" && m.ping && currentDevice) {
           if (m.ping.wifi) currentDevice.wifi = m.ping.wifi;
           if (m.ping.bluetooth) currentDevice.bluetooth = m.ping.bluetooth;
