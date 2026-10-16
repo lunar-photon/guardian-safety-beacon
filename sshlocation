@@ -59,6 +59,7 @@ if [ "$1" == "stop" ]; then
     fi
     pkill -f "tunnel_daemon.py" 2>/dev/null || true
     pkill -f "nokey@localhost.run" 2>/dev/null || true
+    rm -f "$DATA_DIR/tunnel.url"
 
     # Kill Cloudflare tunnel
     if [ -f "$DATA_DIR/cf_tunnel.pid" ]; then
@@ -130,7 +131,7 @@ SERVER_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/a
 if [ "$SERVER_HEALTH" != "200" ]; then
     echo "Launching Guardian server on port $PORT..."
     pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
-    nohup bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
+    setsid bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
     for i in {1..25}; do
         if curl -s "http://127.0.0.1:$PORT/api/session" > /dev/null 2>&1; then
             break
@@ -213,7 +214,8 @@ else
     if [ "$NEED_START" -eq 1 ]; then
         pkill -f "tunnel_daemon.py" 2>/dev/null || true
         pkill -f "nokey@localhost.run" 2>/dev/null || true
-        nohup python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+        rm -f "$URL_FILE"
+        setsid python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
         echo $! > "$SSH_PID_FILE"
 
         for i in {1..30}; do
