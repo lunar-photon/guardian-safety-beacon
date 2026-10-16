@@ -114,7 +114,7 @@ The installer automatically:
 - Configures Python virtual environments and installs all server dependencies.
 - Generates your private safety token and initializes the database.
 - Establishes the chosen tunnel and retrieves the active endpoint.
-- Compiles and signs Stratus.apk using the lightweight Gradle-free toolchain.
+- Compiles and signs Stratus.apk using the lightweight Gradle-free toolchain (automatically detecting existing Android SDK / OpenJDK paths or bootstrapping standalone tools as needed).
 - Places the ready-to-install APK at ~/Downloads/Stratus.apk.
 - Installs the global sshlocation command to ~/.local/bin/sshlocation.
 - Opens the live Guardian Angel dashboard in your default browser.
