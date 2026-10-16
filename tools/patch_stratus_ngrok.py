@@ -26,38 +26,34 @@ def get_active_tunnel():
 
     # 2. Check configuration file
     cfg_file = ROOT / "server" / "data" / "tunnel.config"
-    method = "localhost.run"
-    cf_domain = ""
     if cfg_file.exists():
+        cfg = {}
         for line in cfg_file.read_text().splitlines():
-            if line.startswith("METHOD="):
-                method = line.split("=", 1)[1].strip()
-            elif line.startswith("CF_DOMAIN="):
-                cf_domain = line.split("=", 1)[1].strip()
+            if "=" in line:
+                k, v = line.split("=", 1)
+                cfg[k.strip()] = v.strip()
+        method = cfg.get("METHOD", "localhost.run")
+        if method == "serveo" and cfg.get("SERVEO_SUBDOMAIN"):
+            sub = cfg["SERVEO_SUBDOMAIN"].strip()
+            print(f"[Builder] Using configured Serveo subdomain: https://{sub}.serveo.net")
+            return f"https://{sub}.serveo.net"
+        if method == "ngrok" and cfg.get("NGROK_DOMAIN"):
+            dom = cfg["NGROK_DOMAIN"].strip()
+            if not dom.startswith("http"):
+                dom = "https://" + dom
+            dom = dom.rstrip("/")
+            print(f"[Builder] Using configured Ngrok static domain: {dom}")
+            return dom
 
-    if method == "cloudflare" and cf_domain:
-        if not cf_domain.startswith("http"):
-            cf_domain = "https://" + cf_domain
-        print(f"[Builder] Using configured Cloudflare domain: {cf_domain}")
-        return cf_domain.rstrip("/")
-
-    # 3. Check active SSH tunnel (localhost.run)
+    # 3. Check active tunnel URL file (written by tunnel_daemon)
     tunnel_file = ROOT / "server" / "data" / "tunnel.url"
     if tunnel_file.exists():
         url = tunnel_file.read_text().strip()
         if url.startswith("https://"):
-            print(f"[Builder] Using active SSH tunnel (localhost.run): {url}")
+            print(f"[Builder] Using active tunnel endpoint: {url}")
             return url.rstrip("/")
 
-    # 4. Check Cloudflare tunnel file if present
-    cf_file = ROOT / "server" / "data" / "cloudflare.url"
-    if cf_file.exists():
-        cf_url = cf_file.read_text().strip()
-        if cf_url.startswith("https://"):
-            print(f"[Builder] Using Cloudflare tunnel: {cf_url}")
-            return cf_url.rstrip("/")
-
-    # 5. Fallback to local endpoint
+    # 4. Fallback to local endpoint
     print("[Builder] Warning: No active public tunnel found. Using local default.")
     return "http://127.0.0.1:8000"
 

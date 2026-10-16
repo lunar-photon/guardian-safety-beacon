@@ -29,14 +29,16 @@ mkdir -p "$DATA_DIR"
 
 # Read configured method (default: localhost.run)
 METHOD="localhost.run"
-CF_TOKEN=""
-CF_DOMAIN=""
+SERVEO_SUBDOMAIN=""
+NGROK_TOKEN=""
+NGROK_DOMAIN=""
 if [ -f "$CONFIG_FILE" ]; then
     while IFS='=' read -r key val; do
         case "$key" in
             METHOD) METHOD="$(echo "$val" | tr -d '[:space:]')" ;;
-            CF_TOKEN) CF_TOKEN="$(echo "$val" | tr -d '[:space:]')" ;;
-            CF_DOMAIN) CF_DOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
+            SERVEO_SUBDOMAIN) SERVEO_SUBDOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
+            NGROK_TOKEN) NGROK_TOKEN="$(echo "$val" | tr -d '[:space:]')" ;;
+            NGROK_DOMAIN) NGROK_DOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
         esac
     done < "$CONFIG_FILE"
 fi
@@ -151,58 +153,11 @@ fi
 # 3. Start tunnel based on method
 PUBLIC_URL=""
 
-if [ "$METHOD" == "cloudflare" ]; then
-    CLOUDFLARED="$HOME/.local/bin/cloudflared"
-    [ -x "$CLOUDFLARED" ] || CLOUDFLARED="$(which cloudflared || true)"
-    CF_PID_FILE="$DATA_DIR/cf_tunnel.pid"
-    CF_LOG="$DATA_DIR/cloudflared.log"
-    CF_URL_FILE="$DATA_DIR/cloudflare.url"
-
-    if [ -x "$CLOUDFLARED" ]; then
-        if [ -n "$CF_TOKEN" ]; then
-            echo "Starting Cloudflare Named Tunnel..."
-            if [ ! -f "$CF_PID_FILE" ] || ! kill -0 "$(cat "$CF_PID_FILE")" 2>/dev/null; then
-                nohup "$CLOUDFLARED" tunnel run --token "$CF_TOKEN" </dev/null > "$DATA_DIR/cf_tunnel.log" 2>&1 &
-                echo $! > "$CF_PID_FILE"
-            fi
-            if [ -n "$CF_DOMAIN" ]; then
-                PUBLIC_URL="https://$CF_DOMAIN/?token=$TOKEN"
-                echo "https://$CF_DOMAIN" > "$DATA_DIR/tunnel.url"
-            fi
-        else
-            echo "Starting Cloudflare Tunnel..."
-            NEED_CF=1
-            if [ -f "$CF_PID_FILE" ] && kill -0 "$(cat "$CF_PID_FILE")" 2>/dev/null; then
-                if [ -f "$CF_URL_FILE" ] && [ -s "$CF_URL_FILE" ]; then
-                    NEED_CF=0
-                fi
-            fi
-            if [ "$NEED_CF" -eq 1 ]; then
-                rm -f "$CF_LOG"
-                nohup "$CLOUDFLARED" tunnel --url "http://127.0.0.1:$PORT" </dev/null > "$CF_LOG" 2>&1 &
-                echo $! > "$CF_PID_FILE"
-                for i in {1..30}; do
-                    URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' "$CF_LOG" | head -n 1 || true)
-                    if [ -n "$URL" ]; then
-                        echo "$URL" > "$CF_URL_FILE"
-                        echo "$URL" > "$DATA_DIR/tunnel.url"
-                        break
-                    fi
-                    sleep 0.5
-                done
-            fi
-            if [ -f "$CF_URL_FILE" ]; then
-                PUBLIC_URL="$(cat "$CF_URL_FILE")/?token=$TOKEN"
-            fi
-        fi
-    else
-        echo "Notice: cloudflared not found; falling back to local network."
-    fi
-elif [ "$METHOD" == "local" ]; then
+if [ "$METHOD" == "local" ]; then
     echo "Running on local Wi-Fi / network only."
 else
-    # Default: localhost.run native SSH tunnel via supervisor
-    echo "Connecting persistent SSH tunnel via localhost.run..."
+    # Serveo, Ngrok, or localhost.run via persistent supervisor
+    echo "Connecting persistent tunnel via $METHOD..."
     SSH_PID_FILE="$DATA_DIR/ssh_tunnel.pid"
     URL_FILE="$DATA_DIR/tunnel.url"
 
@@ -216,6 +171,7 @@ else
     if [ "$NEED_START" -eq 1 ]; then
         pkill -f "tunnel_daemon.py" 2>/dev/null || true
         pkill -f "nokey@localhost.run" 2>/dev/null || true
+        pkill -f "serveo.net" 2>/dev/null || true
         rm -f "$URL_FILE"
         setsid python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
         echo $! > "$SSH_PID_FILE"
