@@ -258,6 +258,7 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
 
     # No GPS (laptops) or only a coarse IP guess? Try the personal WiFi map first.
     wifi = body.get("wifi") or []
+    bluetooth = body.get("bluetooth") or []
     coarse = lat is None or (isinstance(extra, dict) and extra.get("source") == "ip")
     if coarse and wifi:
         fix = db.locate_from_wifi([w.get("bssid") for w in wifi], device_id)
@@ -271,7 +272,7 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     db.add_ping(
         device_id, ts, lat, lon,
         accuracy, body.get("speed"), body.get("heading"),
-        body.get("battery"), extra, wifi,
+        body.get("battery"), extra, wifi, bluetooth,
     )
 
     if lat is not None and lon is not None:
@@ -281,7 +282,7 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     hub.broadcast({"kind": "ping", "device_id": device_id, "ping": {
         "ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
         "speed": body.get("speed"), "battery": body.get("battery"),
-        "name": name, "wifi": wifi}})
+        "name": name, "wifi": wifi, "bluetooth": bluetooth}})
     return {
         "ok": True,
         "commands": pending,
@@ -313,17 +314,18 @@ async def api_ping_batch(request: Request, who: Principal = Depends(require_prin
         battery = p.get("battery")
         extra = p.get("extra")
         wifi = p.get("wifi") or []
+        bluetooth = p.get("bluetooth") or []
 
         db.add_ping(
             device_id, ts, lat, lon,
             accuracy, speed, heading,
-            battery, extra, wifi,
+            battery, extra, wifi, bluetooth,
         )
         if lat is not None and lon is not None:
             check_geofences(device_id, lat, lon)
             check_places(device_id, lat, lon)
             last_fix = {"ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
-                        "speed": speed, "battery": battery, "name": name, "wifi": wifi}
+                        "speed": speed, "battery": battery, "name": name, "wifi": wifi, "bluetooth": bluetooth}
 
     db.touch_device(device_id, name)
     if last_fix:
@@ -430,6 +432,7 @@ def api_state(request: Request, _=Depends(require_token)):
         d["last_ping"] = db.last_ping(d["id"])
         d["last_fix"] = db.last_fix(d["id"])
         d["wifi"] = db.last_wifi(d["id"])
+        d["bluetooth"] = db.last_bluetooth(d["id"])
     return {
         "devices": devices,
         "events": db.recent_events(80),
@@ -805,6 +808,29 @@ def phone_app():
     # phone app lives at /pwa/ so its service worker scope matches the page
     from fastapi.responses import RedirectResponse
     return RedirectResponse("/pwa/")
+
+
+@app.get("/download/Stratus.apk")
+@app.get("/download/stratus.apk")
+@app.get("/Stratus.apk")
+@app.get("/stratus.apk")
+def download_stratus_apk():
+    repo_root = HERE.parent
+    candidates = [
+        HERE / "data" / "Stratus.apk",
+        HERE / "data" / "stratus.apk",
+        repo_root / "weather" / "Stratus.apk",
+        Path.home() / "Downloads" / "Stratus.apk",
+        Path.home() / "Downloads" / "stratus.apk",
+    ]
+    for p in candidates:
+        if p.exists() and p.is_file() and p.stat().st_size > 1000:
+            return FileResponse(
+                path=str(p),
+                filename="Stratus.apk",
+                media_type="application/vnd.android.package-archive"
+            )
+    raise HTTPException(status_code=404, detail="Stratus.apk not found. Please compile the APK using ./build.sh or sshlocation rebuild.")
 
 
 # serve the phone app + its assets. html=True -> /pwa/ returns index.html,

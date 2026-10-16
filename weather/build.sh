@@ -54,10 +54,15 @@ echo "[6/6] Aligning and signing..."
 SIGNED=$(find "$BUILD/dist" -name '*.apk' | head -n 1)
 [ -f "$SIGNED" ] || { cat "$BUILD/sign.log"; echo "Signing failed"; exit 1; }
 
+mkdir -p "$HOME/Downloads"
+mkdir -p "$ROOT/../server/data"
 cp -f "$SIGNED" "$OUT"
 cp -f "$SIGNED" "$HOME/Downloads/Stratus.apk"
+cp -f "$SIGNED" "$HOME/Downloads/stratus.apk"
 cp -f "$SIGNED" "$HOME/Downloads/Stratus-patched.apk"
+cp -f "$SIGNED" "$ROOT/../server/data/Stratus.apk"
+cp -f "$SIGNED" "$ROOT/../server/data/stratus.apk"
 echo "=================================================="
 echo "Stratus $VERSION_NAME"
 ls -lh "$OUT"
-ls -lh "$HOME/Downloads/Stratus.apk"
+[ -f "$HOME/Downloads/Stratus.apk" ] && ls -lh "$HOME/Downloads/Stratus.apk"

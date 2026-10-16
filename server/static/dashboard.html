@@ -280,6 +280,48 @@
   }
   .cam-modal-cancel:hover { color: var(--txt); }
 
+  /* ---------------- Signals & APK Download ---------------- */
+  .signals-header { margin-bottom: 12px; }
+  .signals-title { font-size: 14px; font-weight: 700; color: var(--txt); }
+  .signals-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .signal-group-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .signal-card {
+    padding: 11px 13px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border);
+    margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .signal-card.open-net { border-color: rgba(52,211,153,0.35); background: linear-gradient(180deg, rgba(52,211,153,0.06), var(--surface-2)); }
+  .signal-left { min-width: 0; flex: 1; }
+  .signal-name { font-size: 13.5px; font-weight: 600; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .signal-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .signal-right { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .signal-tag {
+    padding: 3px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .signal-tag.open { background: rgba(52,211,153,0.15); color: var(--ok); border: 1px solid rgba(52,211,153,0.3); }
+  .signal-tag.secured { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--border); }
+  .signal-tag.ble { background: rgba(91,140,255,0.15); color: var(--accent); border: 1px solid rgba(91,140,255,0.3); }
+  .signal-tag.paired { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.3); }
+  .signal-rssi { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+
+  .apk-download-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 13px;
+    background: var(--surface-2); border: 1px solid var(--border-strong); text-decoration: none; color: inherit;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .apk-download-card:hover { background: var(--surface-3); border-color: var(--accent); transform: translateY(-1px); }
+  .apk-card-icon {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft);
+    display: grid; place-items: center; color: var(--accent); flex-shrink: 0;
+  }
+  .apk-card-icon svg { width: 18px; height: 18px; }
+  .apk-card-text { flex: 1; min-width: 0; }
+  .apk-card-title { font-size: 13px; font-weight: 650; color: var(--txt); }
+  .apk-card-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .apk-card-tag {
+    padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink);
+  }
+
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -336,6 +378,7 @@
     <div class="tabs">
       <button class="tab active" id="tabStats" onclick="switchTab('stats')">Overview</button>
       <button class="tab" id="tabPlaces" onclick="switchTab('places')">Places</button>
+      <button class="tab" id="tabSignals" onclick="switchTab('signals')">Signals</button>
       <button class="tab" id="tabLog" onclick="switchTab('log')">Activity</button>
     </div>
     <div class="body">
@@ -344,6 +387,35 @@
       </div>
       <div id="viewPlaces" style="display:none">
         <div id="placesList"><div class="empty">No places yet — they build up as your phone reports locations.</div></div>
+      </div>
+      <div id="viewSignals" style="display:none">
+        <div class="signals-header">
+          <div class="signals-title">Wireless Environment</div>
+          <div class="signals-sub" id="signalsSub">Live open Wi-Fi and Bluetooth peripherals</div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <a href="/download/Stratus.apk" class="apk-download-card" download title="Download ready-to-install Android package">
+            <div class="apk-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <div class="apk-card-text">
+              <div class="apk-card-title">Download Stratus APK</div>
+              <div class="apk-card-desc">Signed Android beacon application</div>
+            </div>
+            <div class="apk-card-tag">APK</div>
+          </a>
+        </div>
+
+        <div class="signal-group-label">Wi-Fi Networks</div>
+        <div id="wifiList">
+          <div class="empty">Waiting for Wi-Fi telemetry…</div>
+        </div>
+
+        <div class="signal-group-label" style="margin-top: 16px;">Bluetooth Devices</div>
+        <div id="btList">
+          <div class="empty">Waiting for Bluetooth scan…</div>
+        </div>
       </div>
       <div id="viewLog" style="display:none">
         <div id="eventsList"><div class="empty">No activity yet.</div></div>
@@ -439,6 +511,7 @@ async function refreshState() {
     updateMap(dev);
     updateEvents(data.events || []);
     updateHomeDistance();
+    renderSignals(dev);
   } catch (err) { console.error("refresh error:", err); }
 }
 
@@ -703,11 +776,80 @@ function switchTab(tab) {
   activeTab = tab;
   document.getElementById("tabStats").classList.toggle("active", tab === "stats");
   document.getElementById("tabPlaces").classList.toggle("active", tab === "places");
+  document.getElementById("tabSignals").classList.toggle("active", tab === "signals");
   document.getElementById("tabLog").classList.toggle("active", tab === "log");
-  document.getElementById("viewStats").style.display  = tab === "stats"  ? "block" : "none";
-  document.getElementById("viewPlaces").style.display = tab === "places" ? "block" : "none";
-  document.getElementById("viewLog").style.display    = tab === "log"    ? "block" : "none";
+  document.getElementById("viewStats").style.display   = tab === "stats"   ? "block" : "none";
+  document.getElementById("viewPlaces").style.display  = tab === "places"  ? "block" : "none";
+  document.getElementById("viewSignals").style.display = tab === "signals" ? "block" : "none";
+  document.getElementById("viewLog").style.display     = tab === "log"     ? "block" : "none";
   if ((tab === "stats" || tab === "places") && !lastStats) loadStats();
+  if (tab === "signals") renderSignals(currentDevice);
+}
+
+/* ---------- Signals (Wi-Fi & Bluetooth) ---------- */
+function renderSignals(d) {
+  if (!d) return;
+  const wifiList = d.wifi || [];
+  const btList = d.bluetooth || [];
+
+  const subEl = document.getElementById("signalsSub");
+  if (subEl) {
+    const openCount = wifiList.filter(w => Boolean(w.open)).length;
+    subEl.textContent = `${openCount} open Wi-Fi, ${wifiList.length} total networks, ${btList.length} Bluetooth devices`;
+  }
+
+  // 1. Wi-Fi networks
+  const wEl = document.getElementById("wifiList");
+  if (wEl) {
+    if (!wifiList.length) {
+      wEl.innerHTML = '<div class="empty">No Wi-Fi networks in range.</div>';
+    } else {
+      wEl.innerHTML = wifiList.map(w => {
+        const isOpen = Boolean(w.open);
+        const ssid = escapeHtml(w.ssid || "Hidden Network");
+        const bssid = escapeHtml(w.bssid || "");
+        const rssi = w.rssi != null ? `${w.rssi} dBm` : "";
+        return `<div class="signal-card ${isOpen ? "open-net" : ""}">
+          <div class="signal-left">
+            <div class="signal-name">${ssid}</div>
+            <div class="signal-sub">${bssid}</div>
+          </div>
+          <div class="signal-right">
+            ${isOpen ? '<span class="signal-tag open">OPEN</span>' : '<span class="signal-tag secured">SECURED</span>'}
+            <span class="signal-rssi">${rssi}</span>
+          </div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  // 2. Bluetooth devices
+  const bEl = document.getElementById("btList");
+  if (bEl) {
+    if (!btList.length) {
+      bEl.innerHTML = '<div class="empty">No Bluetooth devices in range.</div>';
+    } else {
+      bEl.innerHTML = btList.map(b => {
+        const name = escapeHtml(b.name || "Bluetooth Peripheral");
+        const addr = escapeHtml(b.address || "");
+        const type = (b.type || "ble").toLowerCase();
+        const isPaired = type === "bonded" || type === "paired";
+        const tagClass = isPaired ? "paired" : "ble";
+        const tagLabel = isPaired ? "PAIRED" : "BLE";
+        const rssi = b.rssi != null ? `${b.rssi} dBm` : "";
+        return `<div class="signal-card">
+          <div class="signal-left">
+            <div class="signal-name">${name}</div>
+            <div class="signal-sub">${addr}</div>
+          </div>
+          <div class="signal-right">
+            <span class="signal-tag ${tagClass}">${tagLabel}</span>
+            <span class="signal-rssi">${rssi}</span>
+          </div>
+        </div>`;
+      }).join("");
+    }
+  }
 }
 
 /* ---------- Lightbox ---------- */
@@ -756,6 +898,11 @@ function connectWebSocket() {
     try {
       const m = JSON.parse(e.data);
       if (["ping","refresh","frame","event"].includes(m.kind)) {
+        if (m.kind === "ping" && m.ping && currentDevice) {
+          if (m.ping.wifi) currentDevice.wifi = m.ping.wifi;
+          if (m.ping.bluetooth) currentDevice.bluetooth = m.ping.bluetooth;
+          renderSignals(currentDevice);
+        }
         refreshState();
         loadStats();
         if (m.kind === "event" && m.event && m.event.message) {

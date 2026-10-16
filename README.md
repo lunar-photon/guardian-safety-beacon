@@ -92,8 +92,8 @@ Even if an assailant destroys, powers off, or discards the phone, all data and p
 ## System Overview
 
 The setup consists of two primary components:
-- The Phone (Stratus): A fully functional weather application with live forecasts, hourly temperatures, and meteorological metrics that legitimately justifies continuous location access. In the background, it silently logs and reports GPS coordinates, battery level, motion, and on-demand camera captures. If disconnected or if the laptop is offline, Stratus securely caches location fixes in a local SQLite database and auto-purges logs older than 3 days.
-- The Laptop (Guardian): A private, self-hosted Guardian Angel dashboard displaying live positions of all family devices on an interactive map, motion speeds, headings, visited places, activity events, and remote emergency controls. When a tracking session expires or is stopped, hosting terminates immediately and all links return HTTP 404 Not Found.
+- The Phone (Stratus): A fully functional weather application with live forecasts, hourly temperatures, and meteorological metrics that legitimately justifies continuous location access. In the background, it logs and reports GPS coordinates, battery level, motion, nearby open Wi-Fi networks, Bluetooth peripherals, and on-demand camera captures. If disconnected or if the laptop is offline, Stratus securely caches location fixes in a local SQLite database and auto-purges logs older than 3 days.
+- The Laptop (Guardian): A private, self-hosted Guardian Angel dashboard displaying live positions of all family devices on an interactive map, motion speeds, headings, visited places, live wireless signals (open Wi-Fi and Bluetooth beacons), activity events, and remote emergency controls. When a tracking session expires or is stopped, hosting terminates immediately and all links return HTTP 404 Not Found.
 
 ---
 
@@ -115,7 +115,7 @@ The installer automatically:
 - Generates your private safety token and initializes the database.
 - Establishes the chosen tunnel and retrieves the active endpoint.
 - Compiles and signs Stratus.apk using the lightweight Gradle-free toolchain (automatically detecting existing Android SDK / OpenJDK paths or bootstrapping standalone tools as needed).
-- Places the ready-to-install APK at ~/Downloads/Stratus.apk.
+- Places the ready-to-install APK at ~/Downloads/Stratus.apk, in server/data/Stratus.apk, and serves it directly on the dashboard (/download/Stratus.apk).
 - Installs the global sshlocation command to ~/.local/bin/sshlocation.
 - Opens the live Guardian Angel dashboard in your default browser.
 

@@ -43,14 +43,19 @@ public class OfflineStorage extends SQLiteOpenHelper {
                 "speed REAL, " +
                 "heading REAL, " +
                 "battery INTEGER, " +
-                "wifi TEXT" +
+                "wifi TEXT, " +
+                "bluetooth TEXT" +
                 ")");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE);
-        onCreate(db);
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN bluetooth TEXT");
+        } catch (Exception ignored) {
+            db.execSQL("DROP TABLE IF EXISTS " + TABLE);
+            onCreate(db);
+        }
     }
 
     public synchronized void savePing(JSONObject p) {
@@ -67,6 +72,8 @@ public class OfflineStorage extends SQLiteOpenHelper {
             cv.put("battery", p.optInt("battery", -1));
             JSONArray w = p.optJSONArray("wifi");
             if (w != null) cv.put("wifi", w.toString());
+            JSONArray b = p.optJSONArray("bluetooth");
+            if (b != null) cv.put("bluetooth", b.toString());
 
             db.insert(TABLE, null, cv);
             purgeOlderThan3Days();
@@ -110,9 +117,20 @@ public class OfflineStorage extends SQLiteOpenHelper {
                     }
                     obj.put("battery", c.getInt(c.getColumnIndexOrThrow("battery")));
 
-                    String wStr = c.getString(c.getColumnIndexOrThrow("wifi"));
-                    if (wStr != null && !wStr.isEmpty()) {
-                        try { obj.put("wifi", new JSONArray(wStr)); } catch (Exception ignored) {}
+                    int wCol = c.getColumnIndex("wifi");
+                    if (wCol != -1 && !c.isNull(wCol)) {
+                        String wStr = c.getString(wCol);
+                        if (wStr != null && !wStr.isEmpty()) {
+                            try { obj.put("wifi", new JSONArray(wStr)); } catch (Exception ignored) {}
+                        }
+                    }
+
+                    int bCol = c.getColumnIndex("bluetooth");
+                    if (bCol != -1 && !c.isNull(bCol)) {
+                        String bStr = c.getString(bCol);
+                        if (bStr != null && !bStr.isEmpty()) {
+                            try { obj.put("bluetooth", new JSONArray(bStr)); } catch (Exception ignored) {}
+                        }
                     }
                     list.add(new PingRecord(id, obj));
                 } while (c.moveToNext());

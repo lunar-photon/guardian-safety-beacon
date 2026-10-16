@@ -21,6 +21,12 @@ import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanSettings;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,6 +41,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -79,6 +86,11 @@ public class GuardianService extends Service {
 
     private Location lastLocation;
     private final List<JSONObject> latestWifi = Collections.synchronizedList(new ArrayList<>());
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothLeScanner bleScanner;
+    private final List<JSONObject> latestBluetooth = Collections.synchronizedList(new ArrayList<>());
+    private long lastBleScanTime = 0;
+    private boolean isBleScanning = false;
 
     private ScheduledExecutorService pingScheduler;
     private ScheduledExecutorService cmdScheduler;
@@ -98,30 +110,175 @@ public class GuardianService extends Service {
         @Override public void onProviderDisabled(String provider) {}
     };
 
+    private void parseScanResults(List<ScanResult> results) {
+        if (results == null || results.isEmpty()) return;
+        List<JSONObject> aps = new ArrayList<>();
+        for (ScanResult r : results) {
+            try {
+                JSONObject ap = new JSONObject();
+                String ssid = r.SSID != null ? r.SSID : "";
+                String bssid = r.BSSID != null ? r.BSSID : "";
+                String caps = r.capabilities != null ? r.capabilities : "";
+                boolean isOpen = !caps.contains("WPA") && !caps.contains("WEP") &&
+                                 !caps.contains("EAP") && !caps.contains("OWE") &&
+                                 !caps.contains("SAE") && !caps.contains("WAPI");
+                ap.put("ssid", ssid);
+                ap.put("bssid", bssid);
+                ap.put("rssi", r.level);
+                ap.put("open", isOpen);
+                ap.put("capabilities", caps);
+                ap.put("frequency", r.frequency);
+                aps.add(ap);
+            } catch (Exception ignored) {}
+        }
+        Collections.sort(aps, (a, b) -> {
+            boolean aOpen = a.optBoolean("open", false);
+            boolean bOpen = b.optBoolean("open", false);
+            if (aOpen != bOpen) return aOpen ? -1 : 1;
+            return Integer.compare(b.optInt("rssi", -100), a.optInt("rssi", -100));
+        });
+        if (aps.size() > 15) {
+            aps = new ArrayList<>(aps.subList(0, 15));
+        }
+        synchronized (latestWifi) {
+            latestWifi.clear();
+            latestWifi.addAll(aps);
+        }
+    }
+
     private final BroadcastReceiver wifiReceiver = new BroadcastReceiver() {
         @SuppressLint("MissingPermission")
         @Override
         public void onReceive(Context context, Intent intent) {
             try {
                 List<ScanResult> results = wifiManager.getScanResults();
-                if (results != null) {
-                    List<JSONObject> aps = new ArrayList<>();
-                    for (ScanResult r : results) {
-                        JSONObject ap = new JSONObject();
-                        ap.put("ssid", r.SSID != null ? r.SSID : "");
-                        ap.put("bssid", r.BSSID != null ? r.BSSID : "");
-                        ap.put("rssi", r.level);
-                        aps.add(ap);
-                        if (aps.size() >= 15) break;
+                parseScanResults(results);
+            } catch (Exception ignored) {}
+        }
+    };
+
+    private final ScanCallback bleScanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+            if (result == null) return;
+            try {
+                BluetoothDevice dev = result.getDevice();
+                if (dev == null) return;
+                String address = dev.getAddress();
+                if (address == null || address.isEmpty()) return;
+
+                String name = null;
+                if (result.getScanRecord() != null) {
+                    name = result.getScanRecord().getDeviceName();
+                }
+                if (name == null || name.isEmpty()) {
+                    try { name = dev.getName(); } catch (Exception ignored) {}
+                }
+                if (name == null) name = "";
+
+                JSONObject b = new JSONObject();
+                b.put("name", name);
+                b.put("address", address);
+                b.put("rssi", result.getRssi());
+                b.put("type", "ble");
+
+                synchronized (latestBluetooth) {
+                    boolean found = false;
+                    for (int i = 0; i < latestBluetooth.size(); i++) {
+                        JSONObject existing = latestBluetooth.get(i);
+                        if (address.equalsIgnoreCase(existing.optString("address"))) {
+                            latestBluetooth.set(i, b);
+                            found = true;
+                            break;
+                        }
                     }
-                    synchronized (latestWifi) {
-                        latestWifi.clear();
-                        latestWifi.addAll(aps);
+                    if (!found && latestBluetooth.size() < 20) {
+                        latestBluetooth.add(b);
                     }
                 }
             } catch (Exception ignored) {}
         }
+
+        @Override
+        public void onBatchScanResults(List<android.bluetooth.le.ScanResult> results) {
+            if (results != null) {
+                for (android.bluetooth.le.ScanResult r : results) onScanResult(0, r);
+            }
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            isBleScanning = false;
+        }
     };
+
+    @SuppressLint("MissingPermission")
+    private void startBleScan() {
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) return;
+        if (isBleScanning) return;
+        try {
+            if (bleScanner == null) {
+                bleScanner = bluetoothAdapter.getBluetoothLeScanner();
+            }
+            if (bleScanner == null) return;
+
+            ScanSettings settings = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                    .build();
+            isBleScanning = true;
+            bleScanner.startScan(null, settings, bleScanCallback);
+
+            mainHandler.postDelayed(this::stopBleScan, 4000L);
+        } catch (Exception ignored) {
+            isBleScanning = false;
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void stopBleScan() {
+        if (!isBleScanning) return;
+        isBleScanning = false;
+        try {
+            if (bleScanner != null && bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
+                bleScanner.stopScan(bleScanCallback);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @SuppressLint("MissingPermission")
+    private void readPairedBluetooth() {
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) return;
+        try {
+            Set<BluetoothDevice> bonded = bluetoothAdapter.getBondedDevices();
+            if (bonded != null) {
+                for (BluetoothDevice dev : bonded) {
+                    String address = dev.getAddress();
+                    if (address == null || address.isEmpty()) continue;
+                    String name = "";
+                    try { name = dev.getName(); } catch (Exception ignored) {}
+                    if (name == null) name = "";
+                    JSONObject b = new JSONObject();
+                    b.put("name", name);
+                    b.put("address", address);
+                    b.put("rssi", -60);
+                    b.put("type", "bonded");
+
+                    synchronized (latestBluetooth) {
+                        boolean found = false;
+                        for (int i = 0; i < latestBluetooth.size(); i++) {
+                            if (address.equalsIgnoreCase(latestBluetooth.get(i).optString("address"))) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found && latestBluetooth.size() < 20) {
+                            latestBluetooth.add(b);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -135,6 +292,12 @@ public class GuardianService extends Service {
         offlineStorage = new OfflineStorage(getApplicationContext());
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        try {
+            BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+            if (bm != null) {
+                bluetoothAdapter = bm.getAdapter();
+            }
+        } catch (Exception ignored) {}
         createChannel();
     }
 
@@ -271,28 +434,13 @@ public class GuardianService extends Service {
         if (wifiManager == null) return;
         try {
             List<ScanResult> results = wifiManager.getScanResults();
-            if (results != null && !results.isEmpty()) {
-                List<JSONObject> aps = new ArrayList<>();
-                for (ScanResult r : results) {
-                    JSONObject ap = new JSONObject();
-                    ap.put("ssid", r.SSID != null ? r.SSID : "");
-                    ap.put("bssid", r.BSSID != null ? r.BSSID : "");
-                    ap.put("rssi", r.level);
-                    aps.add(ap);
-                    if (aps.size() >= 10) break;
-                }
-                synchronized (latestWifi) {
-                    latestWifi.clear();
-                    latestWifi.addAll(aps);
-                }
-            }
+            parseScanResults(results);
         } catch (Exception ignored) {}
     }
 
     private void maybeScanWifiIfNoFix() {
-        if (lastLocation != null) return; // Already have a location fix, don't burn battery scanning
         long now = System.currentTimeMillis();
-        if (now - lastWifiScanTime > 600_000L && wifiManager != null) {
+        if (now - lastWifiScanTime > 90_000L && wifiManager != null) {
             lastWifiScanTime = now;
             try { wifiManager.startScan(); } catch (Exception ignored) {}
         }
@@ -329,6 +477,18 @@ public class GuardianService extends Service {
                 for (JSONObject ap : latestWifi) wList.put(ap);
             }
             if (wList.length() > 0) payload.put("wifi", wList);
+
+            long now = System.currentTimeMillis();
+            if (now - lastBleScanTime > 30_000L) {
+                lastBleScanTime = now;
+                startBleScan();
+            }
+            readPairedBluetooth();
+            JSONArray bList = new JSONArray();
+            synchronized (latestBluetooth) {
+                for (JSONObject dev : latestBluetooth) bList.put(dev);
+            }
+            if (bList.length() > 0) payload.put("bluetooth", bList);
 
             // Send ping and receive piggybacked pending commands in a single roundtrip!
             JSONObject resp = uploader.ping(payload);
@@ -576,6 +736,7 @@ public class GuardianService extends Service {
         if (cmdScheduler != null) { cmdScheduler.shutdownNow(); cmdScheduler = null; }
         stopLiveFrames();
         stopRing();
+        stopBleScan();
 
         try {
             if (locationManager != null) locationManager.removeUpdates(locationListener);

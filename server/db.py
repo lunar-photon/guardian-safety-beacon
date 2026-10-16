@@ -59,9 +59,22 @@ CREATE TABLE IF NOT EXISTS wifi (
     ts        REAL,
     ssid      TEXT,
     bssid     TEXT,
-    rssi      INTEGER
+    rssi      INTEGER,
+    open      INTEGER DEFAULT 0,
+    capabilities TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_wifi_bssid ON wifi(bssid);
+CREATE TABLE IF NOT EXISTS bluetooth (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ping_id   INTEGER,
+    device_id TEXT,
+    ts        REAL,
+    name      TEXT,
+    address   TEXT,
+    rssi      INTEGER,
+    type      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bt_dev_ts ON bluetooth(device_id, ts);
 CREATE TABLE IF NOT EXISTS events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id TEXT,
@@ -120,6 +133,11 @@ def init():
         c.execute("ALTER TABLE devices ADD COLUMN revoked INTEGER DEFAULT 0")
     if "kind" not in cols:
         c.execute("ALTER TABLE devices ADD COLUMN kind TEXT")
+    wifi_cols = {r[1] for r in c.execute("PRAGMA table_info(wifi)").fetchall()}
+    if "open" not in wifi_cols:
+        c.execute("ALTER TABLE wifi ADD COLUMN open INTEGER DEFAULT 0")
+    if "capabilities" not in wifi_cols:
+        c.execute("ALTER TABLE wifi ADD COLUMN capabilities TEXT")
     c.commit()
 
 
@@ -224,7 +242,7 @@ def touch_device(device_id: str, name: str | None = None):
     c.commit()
 
 
-def add_ping(device_id, ts, lat, lon, accuracy, speed, heading, battery, extra, wifi_list):
+def add_ping(device_id, ts, lat, lon, accuracy, speed, heading, battery, extra, wifi_list, bluetooth_list=None):
     c = _conn()
     cur = c.execute(
         "INSERT INTO pings(device_id,ts,lat,lon,accuracy,speed,heading,battery,extra) "
@@ -234,10 +252,17 @@ def add_ping(device_id, ts, lat, lon, accuracy, speed, heading, battery, extra, 
     )
     ping_id = cur.lastrowid
     for w in (wifi_list or []):
+        is_open = 1 if w.get("open") else 0
         c.execute(
-            "INSERT INTO wifi(ping_id,device_id,ts,ssid,bssid,rssi) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO wifi(ping_id,device_id,ts,ssid,bssid,rssi,open,capabilities) VALUES(?,?,?,?,?,?,?,?)",
             (ping_id, device_id, ts, w.get("ssid"), (w.get("bssid") or "").lower() or None,
-             w.get("rssi")),
+             w.get("rssi"), is_open, w.get("capabilities")),
+        )
+    for b in (bluetooth_list or []):
+        c.execute(
+            "INSERT INTO bluetooth(ping_id,device_id,ts,name,address,rssi,type) VALUES(?,?,?,?,?,?,?)",
+            (ping_id, device_id, ts, b.get("name"), (b.get("address") or "").lower() or None,
+             b.get("rssi"), b.get("type")),
         )
     c.commit()
     return ping_id
@@ -502,7 +527,14 @@ def recent_frames(device_id=None, limit=12):
 
 def last_wifi(device_id, limit=20):
     rows = _conn().execute(
-        "SELECT ssid,bssid,rssi,ts FROM wifi WHERE device_id=? ORDER BY ts DESC LIMIT ?",
+        "SELECT ssid,bssid,rssi,open,capabilities,ts FROM wifi WHERE device_id=? ORDER BY ts DESC LIMIT ?",
+        (device_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def last_bluetooth(device_id, limit=20):
+    rows = _conn().execute(
+        "SELECT name,address,rssi,type,ts FROM bluetooth WHERE device_id=? ORDER BY ts DESC LIMIT ?",
         (device_id, limit)).fetchall()
     return [dict(r) for r in rows]
 
