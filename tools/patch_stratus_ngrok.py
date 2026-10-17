@@ -24,7 +24,15 @@ def get_active_tunnel():
         print(f"[Builder] Using explicit tunnel URL: {env_url}")
         return env_url.rstrip("/")
 
-    # 2. Check configuration file
+    # 2. Check active tunnel URL file (written by tunnel_daemon)
+    tunnel_file = ROOT / "server" / "data" / "tunnel.url"
+    if tunnel_file.exists():
+        url = tunnel_file.read_text().strip()
+        if url.startswith("https://"):
+            print(f"[Builder] Using active live tunnel endpoint: {url}")
+            return url.rstrip("/")
+
+    # 3. Check configuration file
     cfg_file = ROOT / "server" / "data" / "tunnel.config"
     if cfg_file.exists():
         cfg = {}
@@ -44,14 +52,6 @@ def get_active_tunnel():
             dom = dom.rstrip("/")
             print(f"[Builder] Using configured Ngrok static domain: {dom}")
             return dom
-
-    # 3. Check active tunnel URL file (written by tunnel_daemon)
-    tunnel_file = ROOT / "server" / "data" / "tunnel.url"
-    if tunnel_file.exists():
-        url = tunnel_file.read_text().strip()
-        if url.startswith("https://"):
-            print(f"[Builder] Using active tunnel endpoint: {url}")
-            return url.rstrip("/")
 
     # 4. Fallback to local endpoint
     print("[Builder] Warning: No active public tunnel found. Using local default.")
