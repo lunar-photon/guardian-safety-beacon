@@ -55,7 +55,14 @@ def get_active_tunnel():
 
     # 4. Fallback to local endpoint
     print("[Builder] Warning: No active public tunnel found. Using local default.")
-    return "http://127.0.0.1:8000"
+    port = 8000
+    port_file = ROOT / "server" / "data" / "server.port"
+    if port_file.exists():
+        try:
+            port = int(port_file.read_text().strip())
+        except Exception:
+            pass
+    return f"http://127.0.0.1:{port}"
 
 def get_or_create_device():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

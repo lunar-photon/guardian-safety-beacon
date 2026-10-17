@@ -37,7 +37,31 @@ if [ ! -d .venv ]; then
   ./.venv/bin/pip install -q -r requirements.txt
 fi
 
-: "${PORT:=8000}"
+get_free_port() {
+  python3 -c "import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()" 2>/dev/null || echo 8000
+}
+
+if [ -z "$PORT" ]; then
+  mkdir -p data
+  if [ -f data/server.port ] && [ -s data/server.port ]; then
+    SAVED_PORT="$(cat data/server.port | tr -d '[:space:]')"
+    if [ -n "$SAVED_PORT" ] && curl -s "http://127.0.0.1:$SAVED_PORT/api/session" >/dev/null 2>&1; then
+      PORT="$SAVED_PORT"
+    fi
+  fi
+  if [ -z "$PORT" ]; then
+    PORT="$(get_free_port)"
+  fi
+fi
+
+export PORT
+mkdir -p data
+echo "$PORT" > data/server.port
+
 echo "Starting Guardian on http://0.0.0.0:${PORT}"
 echo "Dashboard:  http://localhost:${PORT}/"
 echo "Phone app:  http://localhost:${PORT}/pwa/   (use the ngrok URL on the phone)"

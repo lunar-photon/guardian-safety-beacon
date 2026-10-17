@@ -44,8 +44,15 @@ def get_config():
 def run_tunnel():
     global running
     cfg = get_config()
-    method = cfg.get("METHOD", "localhost.run")
-    port = int(os.environ.get("PORT", "8000"))
+    port_val = os.environ.get("PORT")
+    if not port_val and (DATA_DIR / "server.port").exists():
+        try:
+            port_val = (DATA_DIR / "server.port").read_text().strip()
+        except Exception:
+            pass
+    if not port_val:
+        port_val = cfg.get("PORT")
+    port = int(port_val) if port_val and port_val.isdigit() else 8000
 
     if method == "serveo":
         sub = cfg.get("SERVEO_SUBDOMAIN", "stratus-guardian").strip()

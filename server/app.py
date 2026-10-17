@@ -41,8 +41,41 @@ if not TOKEN:
 
 OFFLINE_TIMEOUT = float(os.environ.get("OFFLINE_TIMEOUT", "90"))   # seconds of silence -> alert
 PROXIMITY_WARN_M = float(os.environ.get("PROXIMITY_WARN_M", "300"))  # warn when this close to a danger zone
-PORT = int(os.environ.get("PORT", "8000"))
 HERE = Path(__file__).resolve().parent
+
+
+def get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+def resolve_port() -> int:
+    env_port = os.environ.get("PORT")
+    if env_port and env_port.strip():
+        try:
+            p = int(env_port.strip())
+            if p > 0:
+                return p
+        except ValueError:
+            pass
+    port_file = HERE / "data" / "server.port"
+    if port_file.exists():
+        try:
+            p = int(port_file.read_text().strip())
+            if p > 0:
+                return p
+        except ValueError:
+            pass
+    return get_free_port()
+
+
+PORT = resolve_port()
+try:
+    (HERE / "data").mkdir(parents=True, exist_ok=True)
+    (HERE / "data" / "server.port").write_text(str(PORT))
+except Exception:
+    pass
 
 
 def lan_ip() -> str:

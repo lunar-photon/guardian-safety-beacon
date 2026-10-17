@@ -27,24 +27,22 @@ WEATHER_DIR="$REPO_DIR/weather"
 TOKEN_FILE="$SERVER_DIR/.safety_token"
 CONFIG_FILE="$DATA_DIR/tunnel.config"
 
-# Detect available port: fallback to 8080 if 8000 is used by foreign process
-if [ -z "$PORT" ]; then
-    PORT=8000
-    if curl -s "http://127.0.0.1:8000" >/dev/null 2>&1; then
-        HEALTH=$(curl -s "http://127.0.0.1:8000/api/session" 2>/dev/null || echo "")
-        if [[ "$HEALTH" != *"\"active\""* ]]; then
-            PORT=8080
-        fi
-    fi
-fi
+get_free_port() {
+    python3 -c "import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()" 2>/dev/null || echo 0
+}
 
 mkdir -p "$DATA_DIR"
 
-# Read configured method (default: localhost.run)
+# Read configured method & port
 METHOD="localhost.run"
 SERVEO_SUBDOMAIN=""
 NGROK_TOKEN=""
 NGROK_DOMAIN=""
+CONFIG_PORT=""
 if [ -f "$CONFIG_FILE" ]; then
     while IFS='=' read -r key val; do
         case "$key" in
@@ -52,9 +50,31 @@ if [ -f "$CONFIG_FILE" ]; then
             SERVEO_SUBDOMAIN) SERVEO_SUBDOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
             NGROK_TOKEN) NGROK_TOKEN="$(echo "$val" | tr -d '[:space:]')" ;;
             NGROK_DOMAIN) NGROK_DOMAIN="$(echo "$val" | tr -d '[:space:]')" ;;
+            PORT) CONFIG_PORT="$(echo "$val" | tr -d '[:space:]')" ;;
         esac
     done < "$CONFIG_FILE"
 fi
+
+# Detect available port: reuse running server port or pick whatever port is free on this device
+if [ -z "$PORT" ]; then
+    if [ -f "$DATA_DIR/server.port" ] && [ -s "$DATA_DIR/server.port" ]; then
+        SAVED_PORT="$(cat "$DATA_DIR/server.port" | tr -d '[:space:]')"
+        if [ -n "$SAVED_PORT" ] && curl -s "http://127.0.0.1:$SAVED_PORT/api/session" >/dev/null 2>&1; then
+            PORT="$SAVED_PORT"
+        fi
+    fi
+    if [ -z "$PORT" ] && [ -n "$CONFIG_PORT" ]; then
+        if curl -s "http://127.0.0.1:$CONFIG_PORT/api/session" >/dev/null 2>&1; then
+            PORT="$CONFIG_PORT"
+        fi
+    fi
+    if [ -z "$PORT" ] || [ "$PORT" -eq 0 ]; then
+        PORT="$(get_free_port)"
+    fi
+fi
+
+echo "$PORT" > "$DATA_DIR/server.port" 2>/dev/null || true
+export PORT
 
 # ----------------------------------------------------------------------------
 # Command: stop
