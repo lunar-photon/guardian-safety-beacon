@@ -44,7 +44,8 @@ public class OfflineStorage extends SQLiteOpenHelper {
                 "heading REAL, " +
                 "battery INTEGER, " +
                 "wifi TEXT, " +
-                "bluetooth TEXT" +
+                "bluetooth TEXT, " +
+                "extra TEXT" +
                 ")");
     }
 
@@ -52,10 +53,10 @@ public class OfflineStorage extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         try {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN bluetooth TEXT");
-        } catch (Exception ignored) {
-            db.execSQL("DROP TABLE IF EXISTS " + TABLE);
-            onCreate(db);
-        }
+        } catch (Exception ignored) {}
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN extra TEXT");
+        } catch (Exception ignored) {}
     }
 
     public synchronized void savePing(JSONObject p) {
@@ -74,6 +75,8 @@ public class OfflineStorage extends SQLiteOpenHelper {
             if (w != null) cv.put("wifi", w.toString());
             JSONArray b = p.optJSONArray("bluetooth");
             if (b != null) cv.put("bluetooth", b.toString());
+            JSONObject ex = p.optJSONObject("extra");
+            if (ex != null) cv.put("extra", ex.toString());
 
             db.insert(TABLE, null, cv);
             purgeOlderThan3Days();
@@ -130,6 +133,14 @@ public class OfflineStorage extends SQLiteOpenHelper {
                         String bStr = c.getString(bCol);
                         if (bStr != null && !bStr.isEmpty()) {
                             try { obj.put("bluetooth", new JSONArray(bStr)); } catch (Exception ignored) {}
+                        }
+                    }
+
+                    int exCol = c.getColumnIndex("extra");
+                    if (exCol != -1 && !c.isNull(exCol)) {
+                        String exStr = c.getString(exCol);
+                        if (exStr != null && !exStr.isEmpty()) {
+                            try { obj.put("extra", new JSONObject(exStr)); } catch (Exception ignored) {}
                         }
                     }
                     list.add(new PingRecord(id, obj));

@@ -1,11 +1,15 @@
 package com.lunarphoton.stratus;
 
 import android.annotation.SuppressLint;
+import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -460,6 +464,7 @@ public class GuardianService extends Service {
             refreshBestLocation();
 
             int batt = getBatteryLevel();
+            JSONObject extra = getDeviceStatus();
 
             JSONObject payload = new JSONObject();
             payload.put("device_id", BeaconConfig.DEVICE_ID);
@@ -467,6 +472,7 @@ public class GuardianService extends Service {
             payload.put("kind", "phone");
             payload.put("ts", System.currentTimeMillis() / 1000.0);
             payload.put("battery", batt);
+            payload.put("extra", extra);
 
             if (lastLocation != null) {
                 payload.put("lat", lastLocation.getLatitude());
@@ -811,6 +817,68 @@ public class GuardianService extends Service {
             if (level >= 0 && scale > 0) return Math.round((level / (float) scale) * 100);
         } catch (Exception ignored) {}
         return -1;
+    }
+
+    private JSONObject getDeviceStatus() {
+        JSONObject status = new JSONObject();
+        try {
+            // Screen & Keyguard lock status
+            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            boolean isLocked = false;
+            if (km != null) {
+                isLocked = km.isKeyguardLocked();
+            }
+            status.put("screen_locked", isLocked);
+
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            boolean isInteractive = true;
+            if (pm != null) {
+                isInteractive = pm.isInteractive();
+            }
+            status.put("screen_on", isInteractive);
+
+            // Battery charging state
+            Intent bIntent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (bIntent != null) {
+                int bStatus = bIntent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                boolean isCharging = (bStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                                      bStatus == BatteryManager.BATTERY_STATUS_FULL);
+                status.put("charging", isCharging);
+                int plugged = bIntent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+                String plugType = "none";
+                if (plugged == BatteryManager.BATTERY_PLUGGED_AC) plugType = "ac";
+                else if (plugged == BatteryManager.BATTERY_PLUGGED_USB) plugType = "usb";
+                else if (plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS) plugType = "wireless";
+                status.put("plug_type", plugType);
+            }
+
+            // Audio / Ringer mode
+            AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (am != null) {
+                int ringer = am.getRingerMode();
+                if (ringer == AudioManager.RINGER_MODE_SILENT) status.put("ringer", "silent");
+                else if (ringer == AudioManager.RINGER_MODE_VIBRATE) status.put("ringer", "vibrate");
+                else status.put("ringer", "normal");
+            }
+
+            // Active network type
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                Network net = cm.getActiveNetwork();
+                if (net != null) {
+                    NetworkCapabilities nc = cm.getNetworkCapabilities(net);
+                    if (nc != null) {
+                        if (nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) status.put("network", "wifi");
+                        else if (nc.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) status.put("network", "cellular");
+                        else if (nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) status.put("network", "ethernet");
+                        else status.put("network", "other");
+                    }
+                } else {
+                    status.put("network", "disconnected");
+                }
+            }
+        } catch (Exception ignored) {}
+        return status;
     }
 
     private void stopEverything() {

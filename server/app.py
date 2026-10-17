@@ -429,7 +429,8 @@ async def api_ping(request: Request, who: Principal = Depends(require_principal)
     hub.broadcast({"kind": "ping", "device_id": device_id, "ping": {
         "ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
         "speed": body.get("speed"), "battery": body.get("battery"),
-        "name": name, "wifi": wifi, "bluetooth": bluetooth}})
+        "name": name, "wifi": wifi, "bluetooth": bluetooth,
+        "extra": extra}})
     return {
         "ok": True,
         "commands": pending,
@@ -471,7 +472,8 @@ async def api_ping_batch(request: Request, who: Principal = Depends(require_prin
             check_geofences(device_id, lat, lon, speed=speed, accuracy=accuracy, name=name)
             check_places(device_id, lat, lon)
             last_fix = {"ts": ts, "lat": lat, "lon": lon, "accuracy": accuracy,
-                        "speed": speed, "battery": battery, "name": name, "wifi": wifi, "bluetooth": bluetooth}
+                        "speed": speed, "battery": battery, "name": name, "wifi": wifi, "bluetooth": bluetooth,
+                        "extra": extra}
 
     db.touch_device(device_id, name)
     pending = _commands.pop(device_id, [])
@@ -735,9 +737,15 @@ def api_places(request: Request, _=Depends(require_token)):
 @app.post("/api/places")
 async def api_add_place(request: Request, who: Principal = Depends(require_principal)):
     b = await request.json()
-    device_id = who.device_id or b["device_id"]      # a device can only add its own places
-    pid = db.add_place(device_id, b.get("name", "Place"), float(b["lat"]),
-                       float(b["lon"]), float(b.get("radius", 120)), b.get("kind", "custom"))
+    device_id = who.device_id or b.get("device_id")      # a device can only add its own places
+    pid = db.set_or_update_place(
+        device_id,
+        b.get("name", "Place"),
+        float(b["lat"]),
+        float(b["lon"]),
+        float(b.get("radius", 150)),
+        b.get("kind", "custom")
+    )
     _place_state.pop(device_id, None)
     hub.broadcast({"kind": "refresh"})
     return {"ok": True, "id": pid}

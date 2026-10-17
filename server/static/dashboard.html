@@ -162,6 +162,34 @@
   /* places */
   .place { padding: 13px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--border); margin-bottom: 10px; transition: border-color .15s; }
   .place:hover { border-color: var(--border-strong); }
+  .place.is-home { border-color: rgba(52,211,153,0.4); background: linear-gradient(180deg, rgba(52,211,153,0.06), var(--surface-2)); }
+  .place.is-work { border-color: rgba(245,158,11,0.4); background: linear-gradient(180deg, rgba(245,158,11,0.06), var(--surface-2)); }
+  .place-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 750;
+    margin-left: 6px; vertical-align: middle; letter-spacing: 0.04em;
+  }
+  .place-tag.home { background: rgba(52,211,153,0.18); color: var(--ok); border: 1px solid rgba(52,211,153,0.35); }
+  .place-tag.work { background: rgba(245,158,11,0.18); color: var(--warn); border: 1px solid rgba(245,158,11,0.35); }
+  .place-tag.custom { background: rgba(91,140,255,0.18); color: var(--accent); border: 1px solid rgba(91,140,255,0.35); }
+
+  .place-actions-row {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
+  }
+  .place-tag-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 5px 9px; border-radius: 8px; font-size: 11px; font-weight: 600;
+    font-family: inherit; cursor: pointer; color: var(--muted);
+    background: var(--surface-3); border: 1px solid var(--border);
+    transition: all .15s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .place-tag-btn:hover { color: var(--txt); border-color: var(--border-strong); background: rgba(255,255,255,0.08); }
+  .place-tag-btn.active.home { color: #fff; background: #059669; border-color: #10b981; }
+  .place-tag-btn.active.work { color: #fff; background: #d97706; border-color: #f59e0b; }
+  .place-tag-btn.active.custom { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .place-tag-btn.remove { color: var(--muted); padding: 5px 8px; }
+  .place-tag-btn.remove:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+
   .place-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
   .rank {
     flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
@@ -570,7 +598,7 @@
     </div>
 
     <div class="headline">
-      <div class="eyebrow">Distance to most-visited place</div>
+      <div class="eyebrow" id="homeEyebrow">Distance to most-visited place</div>
       <div class="v num" id="homeDist">—</div>
       <div class="cap" id="homeName">building your history…</div>
     </div>
@@ -579,6 +607,8 @@
       <div class="mcell"><div class="k">Coordinates</div><div class="v num" id="valCoords">—</div></div>
       <div class="mcell"><div class="k">Accuracy</div><div class="v num" id="valAcc">—</div></div>
       <div class="mcell"><div class="k">Battery</div><div class="v num" id="valBat">—</div></div>
+      <div class="mcell"><div class="k">Screen</div><div class="v" id="valScreen">—</div></div>
+      <div class="mcell"><div class="k">Status</div><div class="v" id="valState">—</div></div>
       <div class="mcell"><div class="k">Last seen</div><div class="v" id="valAgo">—</div></div>
     </div>
 
@@ -786,7 +816,7 @@ let TOKEN = "";
 let map, beaconMarker = null, accuracyCircle = null, trailLine = null, homeMarker = null;
 let dangerZonesGroup = L.layerGroup();
 let showTrail = false;
-let currentDevice = null, currentPos = null, latestFrames = [], lastStats = null;
+let currentDevice = null, currentPos = null, latestFrames = [], lastStats = null, savedPlaces = [];
 let hasCentered = false, sheetOpen = false, activeTab = "stats";
 let currentRateSec = 10;
 const rateOptions = [5, 10, 30, 60, 300];
@@ -890,6 +920,7 @@ async function refreshState() {
     const dev = data.devices.find(d => d.id === "dev-6b80ca5a") || data.devices[0];
     currentDevice = dev;
     latestFrames = data.frames || [];
+    savedPlaces = data.places || [];
     updateHUD(dev, data.now, data.offline_timeout);
     updateMap(dev);
     updateGeofences(data.geofences || []);
@@ -929,7 +960,41 @@ function updateHUD(d, now, timeout) {
     document.getElementById("valCoords").textContent = `${fx.lat.toFixed(4)}, ${fx.lon.toFixed(4)}`;
   } else document.getElementById("valCoords").textContent = "Waiting…";
   document.getElementById("valAcc").textContent = (fx && fx.accuracy != null) ? `±${Math.round(fx.accuracy)} m` : "—";
-  document.getElementById("valBat").textContent = (lp.battery != null) ? `${Math.round(lp.battery)}%` : "—";
+  
+  const ex = (lp && lp.extra) ? lp.extra : ((fx && fx.extra) ? fx.extra : {});
+  const isCharging = Boolean(ex.charging);
+  const batVal = (lp.battery != null && lp.battery >= 0) ? `${Math.round(lp.battery)}%` : "—";
+  document.getElementById("valBat").textContent = isCharging ? `⚡ ${batVal}` : batVal;
+
+  // Screen status
+  const screenEl = document.getElementById("valScreen");
+  if (screenEl) {
+    if (ex.screen_locked === true) {
+      screenEl.innerHTML = ex.screen_on === false ? '<span style="color:#f59e0b">🔒 Locked (Off)</span>' : '<span style="color:#f59e0b">🔒 Locked</span>';
+    } else if (ex.screen_locked === false) {
+      screenEl.innerHTML = ex.screen_on === false ? '<span style="color:var(--muted)">🔓 Screen Off</span>' : '<span style="color:#10b981">🔓 Unlocked</span>';
+    } else {
+      screenEl.textContent = online ? "Unlocked" : "—";
+    }
+  }
+
+  // Device status (Charging, Network, Ringer)
+  const stateEl = document.getElementById("valState");
+  if (stateEl) {
+    let stateTxt = "";
+    if (isCharging) {
+      const plug = (ex.plug_type && ex.plug_type !== "none") ? ` (${ex.plug_type.toUpperCase()})` : "";
+      stateTxt = `Charging${plug}`;
+    } else if (ex.network) {
+      stateTxt = ex.network === "wifi" ? "Wi-Fi" : (ex.network === "cellular" ? "Mobile Data" : ex.network);
+    } else if (online) {
+      stateTxt = "Active";
+    } else {
+      stateTxt = "Standby";
+    }
+    stateEl.textContent = stateTxt;
+  }
+
   document.getElementById("valAgo").textContent = formatAgo(d.last_seen, now);
 }
 
@@ -1244,7 +1309,45 @@ function computeStats(track, lastFix) {
     if (hit) { hit.dwell += dwell; hit.visits++; hit.points += r.n; }
     else places.push({ c: {lat:r.c.lat, lon:r.c.lon}, dwell, visits: 1, points: r.n, photos: [] });
   }
-  places.sort((a,b) => (b.dwell-a.dwell) || (b.visits-a.visits) || (b.points-a.points));
+
+  // Correlate with saved places (Home, Work, Custom)
+  for (const pl of places) {
+    const hit = (savedPlaces || []).find(sp => haversine(sp, pl.c) <= 160);
+    if (hit) {
+      pl.savedId = hit.id;
+      pl.savedName = hit.name;
+      pl.kind = hit.kind;
+    }
+  }
+
+  // Include any explicitly saved places even if not recently visited in track
+  for (const sp of (savedPlaces || [])) {
+    if (sp.lat != null && sp.lon != null) {
+      const exists = places.some(pl => haversine(sp, pl.c) <= 160);
+      if (!exists) {
+        places.push({
+          c: { lat: sp.lat, lon: sp.lon },
+          dwell: 0,
+          visits: sp.visits || 0,
+          points: 0,
+          photos: [],
+          savedId: sp.id,
+          savedName: sp.name,
+          kind: sp.kind
+        });
+      }
+    }
+  }
+
+  // Sort places: Home first, Work second, then highest dwell time & visits
+  places.sort((a,b) => {
+    if (a.kind === "home" && b.kind !== "home") return -1;
+    if (b.kind === "home" && a.kind !== "home") return 1;
+    if (a.kind === "office" && b.kind !== "office") return -1;
+    if (b.kind === "office" && a.kind !== "office") return 1;
+    return (b.dwell-a.dwell) || (b.visits-a.visits) || (b.points-a.points);
+  });
+
   return { dist, span, count: pts.length, avgAcc, places, hasTime: ts.length > 1, top: places[0] || null, curSpeed, maxSpeed, curHeading, curAcc };
 }
 function attachPhotos(stats, frames, track) {
@@ -1279,9 +1382,22 @@ function renderStats(s) {
   const maxSpdTxt = s.maxSpeed > 1.0 ? `${s.maxSpeed.toFixed(1)}<small> km/h</small>` : "—";
   const headingTxt = formatHeading(s.curHeading);
   const accTxt = s.curAcc != null ? `±${Math.round(s.curAcc)}<small> m</small>` : (s.avgAcc != null ? `±${Math.round(s.avgAcc)}<small> m</small>` : "—");
+
+  const ex = (currentDevice && currentDevice.last_ping && currentDevice.last_ping.extra) || (currentDevice && currentDevice.last_fix && currentDevice.last_fix.extra) || {};
+  let screenTxt = "—";
+  if (ex.screen_locked === true) {
+    screenTxt = ex.screen_on === false ? "Locked (Screen Off)" : "Locked (Screen On)";
+  } else if (ex.screen_locked === false) {
+    screenTxt = ex.screen_on === false ? "Unlocked (Screen Off)" : "Unlocked (Active)";
+  }
+  let powerTxt = ex.charging ? `Charging (${(ex.plug_type || "AC").toUpperCase()})` : "On Battery";
+  if (ex.network) powerTxt += ` · ${ex.network === "wifi" ? "Wi-Fi" : (ex.network === "cellular" ? "Cellular" : ex.network)}`;
+
   el.innerHTML = `
     <div class="scard"><div class="k">Current Motion</div><div class="v num">${motionTxt}</div></div>
     <div class="scard"><div class="k">Heading</div><div class="v num">${headingTxt}</div></div>
+    <div class="scard"><div class="k">Screen State</div><div class="v">${screenTxt}</div></div>
+    <div class="scard"><div class="k">Power & Network</div><div class="v">${powerTxt}</div></div>
     <div class="scard"><div class="k">Distance travelled</div><div class="v num">${d.n}<small> ${d.u}</small></div></div>
     <div class="scard"><div class="k">Max speed</div><div class="v num">${maxSpdTxt}</div></div>
     <div class="scard"><div class="k">GPS Accuracy</div><div class="v num">${accTxt}</div></div>
@@ -1292,16 +1408,58 @@ function renderStats(s) {
 function renderPlaces(s) {
   const el = document.getElementById("placesList");
   if (!s.places.length) { el.innerHTML = '<div class="empty">No places yet — they build up as your phone reports locations.</div>'; return; }
-  el.innerHTML = s.places.slice(0, 20).map((pl, i) => {
+  el.innerHTML = s.places.slice(0, 25).map((pl, i) => {
     const photos = pl.photos.map(u => `<img class="thumb" src="${u}" loading="lazy" alt="Photo here" onclick="openLightbox('${u}')">`).join("");
-    const timeBlock = s.hasTime
+    const timeBlock = s.hasTime && pl.dwell > 0
       ? `<div class="place-time"><div class="big num">${fmtDur(pl.dwell)}</div><div class="lil">${pl.visits} visit${pl.visits>1?"s":""}</div></div>`
       : `<div class="place-time"><div class="big num">${pl.visits}</div><div class="lil">visit${pl.visits>1?"s":""}</div></div>`;
-    return `<div class="place"><div class="place-head" onclick="flyToPlace(${i})">
-      <div class="rank ${i===0?"":"dim"}">${i+1}</div>
-      <div class="place-info"><div class="place-name">${i===0 ? "Most-visited place" : "Place "+(i+1)}</div>
-      <div class="place-meta num">${pl.c.lat.toFixed(4)}, ${pl.c.lon.toFixed(4)}</div></div>
-      ${timeBlock}</div><div class="place-photos">${photos}</div></div>`;
+
+    const isHome = pl.kind === "home";
+    const isWork = pl.kind === "office";
+    const isCustom = pl.kind === "custom" || (pl.savedName && !isHome && !isWork);
+
+    let displayName = i === 0 ? "Most-visited place" : `Place ${i+1}`;
+    let badgeHtml = "";
+    if (isHome) {
+      displayName = "Home";
+      badgeHtml = '<span class="place-tag home">🏠 HOME</span>';
+    } else if (isWork) {
+      displayName = "Work";
+      badgeHtml = '<span class="place-tag work">💼 WORK</span>';
+    } else if (pl.savedName) {
+      displayName = escapeHtml(pl.savedName);
+      badgeHtml = '<span class="place-tag custom">📍 SAVED</span>';
+    }
+
+    const rankText = isHome ? "🏠" : (isWork ? "💼" : (i + 1));
+    const isHighlighted = isHome || isWork || i === 0;
+
+    return `<div class="place ${isHome ? "is-home" : ""} ${isWork ? "is-work" : ""}">
+      <div class="place-head" onclick="flyToPlace(${i})">
+        <div class="rank ${isHighlighted ? "" : "dim"}">${rankText}</div>
+        <div class="place-info">
+          <div class="place-name">${displayName} ${badgeHtml}</div>
+          <div class="place-meta num">${pl.c.lat.toFixed(4)}, ${pl.c.lon.toFixed(4)}</div>
+        </div>
+        ${timeBlock}
+      </div>
+      <div class="place-actions-row">
+        <button class="place-tag-btn ${isHome ? "active home" : ""}" onclick="event.stopPropagation(); setPlaceType(${i}, 'home')" title="Mark this place as Home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>${isHome ? "Home ✓" : "Mark Home"}</span>
+        </button>
+        <button class="place-tag-btn ${isWork ? "active work" : ""}" onclick="event.stopPropagation(); setPlaceType(${i}, 'office')" title="Mark this place as Work">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          <span>${isWork ? "Work ✓" : "Mark Work"}</span>
+        </button>
+        <button class="place-tag-btn ${isCustom ? "active custom" : ""}" onclick="event.stopPropagation(); setPlaceType(${i}, 'custom')" title="Label with a custom name">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          <span>${isCustom ? "Rename" : "Label"}</span>
+        </button>
+        ${(isHome || isWork || isCustom || pl.savedId) ? `<button class="place-tag-btn remove" onclick="event.stopPropagation(); clearPlaceType(${i})" title="Remove label">✕</button>` : ""}
+      </div>
+      <div class="place-photos">${photos}</div>
+    </div>`;
   }).join("");
 }
 function flyToPlace(i) {
@@ -1311,15 +1469,121 @@ function flyToPlace(i) {
   if (!isDesktop() && sheetOpen) toggleSheet();
 }
 function updateHomeDistance() {
-  const top = lastStats && lastStats.top;
+  let homePlace = (savedPlaces || []).find(p => p.kind === "home");
+  if (!homePlace && lastStats && lastStats.places) {
+    homePlace = lastStats.places.find(p => p.kind === "home");
+  }
+  const isExplicitHome = Boolean(homePlace);
+  const target = homePlace
+    ? { c: { lat: homePlace.lat, lon: homePlace.lon }, name: "Home" }
+    : (lastStats && lastStats.top);
+
   const dEl = document.getElementById("homeDist"), nEl = document.getElementById("homeName");
-  if (!top) { dEl.textContent = "—"; nEl.textContent = "building your history…"; return; }
+  const eyebrowEl = document.getElementById("homeEyebrow");
+  if (eyebrowEl) {
+    eyebrowEl.textContent = isExplicitHome ? "Distance to Home" : "Distance to most-visited place";
+  }
+
+  if (!target) {
+    dEl.textContent = "—";
+    nEl.textContent = "building your history…";
+    return;
+  }
   if (homeMarker) map.removeLayer(homeMarker);
-  homeMarker = L.marker([top.c.lat, top.c.lon], { icon: homeIcon }).addTo(map);
-  if (!currentPos) { dEl.textContent = "—"; nEl.textContent = "waiting for your location…"; return; }
-  const m = haversine(currentPos, top.c), d = fmtDist(m);
+  homeMarker = L.marker([target.c.lat, target.c.lon], { icon: homeIcon }).addTo(map);
+  homeMarker.bindTooltip(isExplicitHome ? "🏠 Home" : "Most-visited place", { sticky: true });
+
+  const workPlace = (savedPlaces || []).find(p => p.kind === "office");
+  if (workPlace && workPlace.lat != null && workPlace.lon != null) {
+    if (window.workMarker) map.removeLayer(window.workMarker);
+    const workIcon = L.divIcon({
+      html: '<div style="background:#f59e0b;color:#fff;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,0.5);border:2px solid #fff;">💼</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      className: ''
+    });
+    window.workMarker = L.marker([workPlace.lat, workPlace.lon], { icon: workIcon }).addTo(map);
+    window.workMarker.bindTooltip("💼 Work", { sticky: true });
+  } else if (window.workMarker) {
+    map.removeLayer(window.workMarker);
+    window.workMarker = null;
+  }
+
+  if (!currentPos) {
+    dEl.textContent = "—";
+    nEl.textContent = "waiting for your location…";
+    return;
+  }
+  const m = haversine(currentPos, target.c), d = fmtDist(m);
   dEl.innerHTML = `${d.n}<small> ${d.u}</small>`;
-  nEl.textContent = m < 120 ? "you're there right now" : "from your most-visited place";
+  nEl.textContent = m < 120 ? "you're there right now" : (isExplicitHome ? "from your marked Home" : "from your most-visited place");
+}
+
+async function setPlaceType(index, type) {
+  const pl = lastStats && lastStats.places[index];
+  if (!pl) return;
+  let name = "Home";
+  if (type === "office") name = "Work";
+  else if (type === "custom") {
+    name = prompt("Enter a custom label for this place (e.g. Gym, Library, Mom's House):", pl.savedName || "");
+    if (!name || !name.trim()) return;
+    name = name.trim();
+  }
+  const devId = currentDevice ? currentDevice.id : null;
+  try {
+    showToast(`Saving place: ${name}…`);
+    const res = await fetch("/api/places", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        device_id: devId,
+        name: name,
+        lat: pl.c.lat,
+        lon: pl.c.lon,
+        radius: 150,
+        kind: type
+      })
+    });
+    if (res.ok) {
+      showToast(`Marked as ${name}`);
+      await refreshState();
+      await loadStats();
+    } else {
+      showToast("Failed to save place mark");
+    }
+  } catch (err) {
+    showToast("Error saving place mark");
+  }
+}
+
+async function clearPlaceType(index) {
+  const pl = lastStats && lastStats.places[index];
+  if (!pl) return;
+  let sid = pl.savedId;
+  if (!sid && savedPlaces) {
+    const sp = savedPlaces.find(p => haversine(p, pl.c) <= 160);
+    if (sp) sid = sp.id;
+  }
+  if (!sid) {
+    showToast("No saved mark on this place");
+    return;
+  }
+  if (!confirm("Remove mark from this place?")) return;
+  try {
+    const res = await fetch(`/api/places/${sid}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + TOKEN }
+    });
+    if (res.ok) {
+      showToast("Place mark removed");
+      await refreshState();
+      await loadStats();
+    } else {
+      showToast("Failed to remove mark");
+    }
+  } catch (err) {
+    showToast("Error removing place mark");
+  }
 }
 
 /* ---------- Activity ---------- */

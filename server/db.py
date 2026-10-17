@@ -341,6 +341,45 @@ def add_place(device_id, name, lat, lon, radius, kind):
     return cur.lastrowid
 
 
+def set_or_update_place(device_id, name, lat, lon, radius=150.0, kind="custom"):
+    c = _conn()
+    lat, lon, radius = float(lat), float(lon), float(radius)
+    existing = None
+    # 1. If kind is 'home' or 'office', ensure only one exists per device
+    if kind in ("home", "office"):
+        existing = c.execute(
+            "SELECT id FROM places WHERE (device_id=? OR device_id IS NULL) AND kind=? LIMIT 1",
+            (device_id, kind)
+        ).fetchone()
+
+    # 2. If not found, check if a place exists within 160m
+    if not existing:
+        rows = c.execute("SELECT id, lat, lon FROM places WHERE device_id=? OR device_id IS NULL", (device_id,)).fetchall()
+        for r in rows:
+            d_lat = (r[1] - lat) * 111000.0
+            d_lon = (r[2] - lon) * 111000.0 * math.cos(math.radians(lat))
+            if (d_lat**2 + d_lon**2) ** 0.5 <= 160.0:
+                existing = r
+                break
+
+    now = time.time()
+    if existing:
+        c.execute(
+            "UPDATE places SET name=?, lat=?, lon=?, radius=?, kind=?, last_seen=? WHERE id=?",
+            (name, lat, lon, radius, kind, now, existing[0])
+        )
+        pid = existing[0]
+    else:
+        cur = c.execute(
+            "INSERT INTO places(device_id,name,lat,lon,radius,kind,visits,last_seen) "
+            "VALUES(?,?,?,?,?,?,0,?)",
+            (device_id, name, lat, lon, radius, kind, now)
+        )
+        pid = cur.lastrowid
+    c.commit()
+    return pid
+
+
 def rename_place(place_id, name, kind=None):
     c = _conn()
     if kind:
@@ -429,7 +468,14 @@ def last_ping(device_id):
     r = _conn().execute(
         "SELECT * FROM pings WHERE device_id=? ORDER BY ts DESC LIMIT 1", (device_id,)
     ).fetchone()
-    return dict(r) if r else None
+    if not r:
+        return None
+    d = dict(r)
+    try:
+        d["extra"] = json.loads(d["extra"]) if d["extra"] else None
+    except Exception:
+        d["extra"] = None
+    return d
 
 
 def last_fix(device_id):
