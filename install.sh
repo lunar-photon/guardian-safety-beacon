@@ -80,7 +80,7 @@ case "$USER_CHOICE" in
         SELECTED_METHOD="serveo"
         echo ""
         echo "Configuring Serveo Permanent Subdomain:"
-        DEFAULT_SUB="stratus-$(whoami 2>/dev/null || echo "guardian")"
+        DEFAULT_SUB="stratus-${REAL_USER:-guardian}"
         if [ -t 0 ]; then
             read -r -p "  Enter desired subdomain (default: $DEFAULT_SUB): " SERVEO_SUBDOMAIN
         fi
@@ -113,7 +113,7 @@ case "$USER_CHOICE" in
         ;;
     *)
         SELECTED_METHOD="serveo"
-        SERVEO_SUBDOMAIN="stratus-$(whoami 2>/dev/null || echo "guardian")"
+        SERVEO_SUBDOMAIN="stratus-${REAL_USER:-guardian}"
         ;;
 esac
 
