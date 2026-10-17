@@ -13,11 +13,13 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.util.Size;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -40,7 +42,7 @@ public class CameraCapture {
         }
 
         // Try Camera2 first
-        tryCamera2(context, facingCamera1, new Callback() {
+        tryCamera2(context, facingCamera1, 0, new Callback() {
             @Override
             public void onCaptured(byte[] jpegBytes) {
                 if (callback != null) callback.onCaptured(jpegBytes);
@@ -48,8 +50,10 @@ public class CameraCapture {
 
             @Override
             public void onError(String error) {
-                // Fallback to Camera1
-                tryCamera1(facingCamera1, callback);
+                // Allow hardware brief 350ms release buffer before Camera1 fallback
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    tryCamera1(facingCamera1, callback);
+                }, 350);
             }
         });
     }
@@ -57,7 +61,7 @@ public class CameraCapture {
     // -------------------------------------------------------------
     // Camera2 implementation (modern, background-safe, ImageReader)
     // -------------------------------------------------------------
-    private static void tryCamera2(Context context, int facingCamera1, Callback callback) {
+    private static void tryCamera2(Context context, int facingCamera1, int retryCount, Callback callback) {
         HandlerThread thread = new HandlerThread("Camera2Bg");
         thread.start();
         Handler bgHandler = new Handler(thread.getLooper());
@@ -75,25 +79,60 @@ public class CameraCapture {
 
         try {
             String selectedId = null;
+            CameraCharacteristics selectedChars = null;
             for (String id : manager.getCameraIdList()) {
                 CameraCharacteristics chars = manager.getCameraCharacteristics(id);
                 Integer f = chars.get(CameraCharacteristics.LENS_FACING);
                 if (f != null && f == targetFacing) {
                     selectedId = id;
+                    selectedChars = chars;
                     break;
                 }
             }
             if (selectedId == null && manager.getCameraIdList().length > 0) {
                 selectedId = manager.getCameraIdList()[0];
+                selectedChars = manager.getCameraCharacteristics(selectedId);
             }
-            if (selectedId == null) {
+            if (selectedId == null || selectedChars == null) {
                 thread.quitSafely();
                 if (callback != null) callback.onError("No camera found");
                 return;
             }
 
             final String cameraId = selectedId;
-            final ImageReader reader = ImageReader.newInstance(1280, 720, ImageFormat.JPEG, 2);
+
+            // Dynamically select a supported JPEG resolution from camera characteristics
+            int chosenWidth = 1280;
+            int chosenHeight = 720;
+            try {
+                StreamConfigurationMap map = selectedChars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                if (map != null) {
+                    Size[] sizes = map.getOutputSizes(ImageFormat.JPEG);
+                    if (sizes != null && sizes.length > 0) {
+                        Size best = null;
+                        for (Size s : sizes) {
+                            if (s.getWidth() <= 1280 && s.getHeight() <= 720 && s.getWidth() >= 640 && s.getHeight() >= 480) {
+                                if (best == null || (s.getWidth() * s.getHeight() > best.getWidth() * best.getHeight())) {
+                                    best = s;
+                                }
+                            }
+                        }
+                        if (best == null) {
+                            for (Size s : sizes) {
+                                if (s.getWidth() <= 1920 && s.getHeight() <= 1080) {
+                                    best = s;
+                                    break;
+                                }
+                            }
+                        }
+                        if (best == null) best = sizes[0];
+                        chosenWidth = best.getWidth();
+                        chosenHeight = best.getHeight();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            final ImageReader reader = ImageReader.newInstance(chosenWidth, chosenHeight, ImageFormat.JPEG, 2);
             final AtomicBoolean finished = new AtomicBoolean(false);
             final CameraDevice[] cameraDeviceHolder = new CameraDevice[1];
             final CameraCaptureSession[] sessionHolder = new CameraCaptureSession[1];
@@ -241,7 +280,16 @@ public class CameraCapture {
                     return;
                 }
 
-                camera = Camera.open(cameraId);
+                try {
+                    camera = Camera.open(cameraId);
+                } catch (RuntimeException re) {
+                    try {
+                        Thread.sleep(600);
+                        camera = Camera.open(cameraId);
+                    } catch (Exception ex) {
+                        throw re;
+                    }
+                }
                 Camera.Parameters params = camera.getParameters();
                 List<Camera.Size> sizes = params.getSupportedPreviewSizes();
                 Camera.Size chosenSize = null;
