@@ -9,6 +9,7 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$DIR/server"
 DATA_DIR="$SERVER_DIR/data"
+CONFIG_FILE="$DATA_DIR/tunnel.config"
 WEATHER_DIR="$DIR/weather"
 TOKEN_FILE="$SERVER_DIR/.safety_token"
 # Detect available port: fallback to 8080 if 8000 is used by foreign process

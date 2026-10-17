@@ -708,18 +708,28 @@ public class GuardianService extends Service {
         CameraCapture.takePhoto(this, facing, new CameraCapture.Callback() {
             @Override
             public void onCaptured(byte[] jpeg) {
-                if (jpeg != null) {
-                    uploader.uploadPhoto(jpeg, reason, index);
-                } else {
-                    onError("Empty frame captured");
-                }
-                if (onComplete != null) onComplete.run();
+                new Thread(() -> {
+                    try {
+                        if (jpeg != null) {
+                            uploader.uploadPhoto(jpeg, reason, index);
+                        } else {
+                            uploader.logEvent("camera_error", (facing == Camera.CameraInfo.CAMERA_FACING_FRONT ? "Front" : "Back") + " camera error: Empty frame captured");
+                        }
+                    } finally {
+                        if (onComplete != null) onComplete.run();
+                    }
+                }).start();
             }
 
             @Override
             public void onError(String err) {
-                uploader.logEvent("camera_error", (facing == Camera.CameraInfo.CAMERA_FACING_FRONT ? "Front" : "Back") + " camera error: " + err);
-                if (onComplete != null) onComplete.run();
+                new Thread(() -> {
+                    try {
+                        uploader.logEvent("camera_error", (facing == Camera.CameraInfo.CAMERA_FACING_FRONT ? "Front" : "Back") + " camera error: " + err);
+                    } finally {
+                        if (onComplete != null) onComplete.run();
+                    }
+                }).start();
             }
         });
     }

@@ -680,10 +680,6 @@
             <div class="photos-title">Captured Photos & Evidence</div>
             <div class="photos-sub" id="photosSub">Live snapshots from front and rear cameras</div>
           </div>
-          <button class="btn" style="padding: 6px 12px; font-size: 11px; flex-direction: row; gap: 6px;" onclick="requestPhoto()" title="Take snapshot now">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg>
-            <span>Take Photo</span>
-          </button>
         </div>
         <div id="photosContainer">
           <div class="empty">No photos captured yet. Use the "Photo" button above to request snapshots from front or back cameras.</div>
@@ -825,7 +821,10 @@ const isDesktop = () => window.matchMedia("(min-width: 861px)").matches;
 const urlParams = new URLSearchParams(window.location.search);
 const injectedToken = "__DEFAULT_TOKEN__";
 TOKEN = urlParams.get("token") || (!injectedToken.startsWith("__") ? injectedToken : "") || localStorage.getItem(LS_TOKEN_KEY) || "";
-if (TOKEN) localStorage.setItem(LS_TOKEN_KEY, TOKEN);
+if (TOKEN) {
+  localStorage.setItem(LS_TOKEN_KEY, TOKEN);
+  document.cookie = `guardian_token=${encodeURIComponent(TOKEN)}; path=/; max-age=31536000; SameSite=Lax`;
+}
 
 initMap();
 refreshState().then(loadStats);

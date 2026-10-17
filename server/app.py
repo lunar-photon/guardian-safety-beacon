@@ -78,6 +78,9 @@ def _extract_token(request: Request) -> str:
     tok = request.query_params.get("token", "")
     if tok:
         return tok
+    tok = request.cookies.get("guardian_token", "")
+    if tok:
+        return tok
     # Local loopback callers on localhost / 127.0.0.1 are trusted
     host = request.url.hostname or ""
     client_host = request.client.host if request.client else ""
@@ -1056,11 +1059,17 @@ def api_session_end(request: Request, _=Depends(require_admin_renew)):
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     tok = request.query_params.get("token", "")
+    cookie_tok = request.cookies.get("guardian_token", "")
     html = (HERE / "static" / "dashboard.html").read_text()
     host = request.url.hostname or ""
     client_host = request.client.host if request.client else ""
     is_local = host in ("localhost", "127.0.0.1", "::1") or client_host in ("127.0.0.1", "::1") or (lan_ip() in str(request.base_url))
-    return html.replace("__DEFAULT_TOKEN__", TOKEN if tok or is_local else "")
+    has_valid_tok = bool(tok and secrets.compare_digest(tok, TOKEN)) or bool(cookie_tok and secrets.compare_digest(cookie_tok, TOKEN))
+    effective_token = TOKEN if (has_valid_tok or is_local) else ""
+    resp = HTMLResponse(content=html.replace("__DEFAULT_TOKEN__", effective_token))
+    if tok and secrets.compare_digest(tok, TOKEN):
+        resp.set_cookie("guardian_token", TOKEN, max_age=31536000, path="/", samesite="lax")
+    return resp
 
 
 @app.get("/app")
