@@ -13,14 +13,30 @@
 set -e
 
 # Target workspace directory
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+REPO_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
 SERVER_DIR="$REPO_DIR/server"
 DATA_DIR="$SERVER_DIR/data"
 WEATHER_DIR="$REPO_DIR/weather"
 TOKEN_FILE="$SERVER_DIR/.safety_token"
 CONFIG_FILE="$DATA_DIR/tunnel.config"
-PORT=8000
+
+# Detect available port: fallback to 8080 if 8000 is used by foreign process
+if [ -z "$PORT" ]; then
+    PORT=8000
+    if curl -s "http://127.0.0.1:8000" >/dev/null 2>&1; then
+        HEALTH=$(curl -s "http://127.0.0.1:8000/api/session" 2>/dev/null || echo "")
+        if [[ "$HEALTH" != *"\"active\""* ]]; then
+            PORT=8080
+        fi
+    fi
+fi
 
 mkdir -p "$DATA_DIR"
 
@@ -175,7 +191,7 @@ else
         pkill -f "nokey@localhost.run" 2>/dev/null || true
         pkill -f "serveo.net" 2>/dev/null || true
         rm -f "$URL_FILE"
-        setsid python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+        PORT=$PORT setsid python3 "$REPO_DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
         echo $! > "$SSH_PID_FILE"
 
         for i in {1..30}; do

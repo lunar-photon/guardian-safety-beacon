@@ -11,8 +11,16 @@ SERVER_DIR="$DIR/server"
 DATA_DIR="$SERVER_DIR/data"
 WEATHER_DIR="$DIR/weather"
 TOKEN_FILE="$SERVER_DIR/.safety_token"
-CONFIG_FILE="$DATA_DIR/tunnel.config"
-PORT=8000
+# Detect available port: fallback to 8080 if 8000 is used by foreign process
+if [ -z "$PORT" ]; then
+    PORT=8000
+    if curl -s "http://127.0.0.1:8000" >/dev/null 2>&1; then
+        HEALTH=$(curl -s "http://127.0.0.1:8000/api/session" 2>/dev/null || echo "")
+        if [[ "$HEALTH" != *"\"active\""* ]]; then
+            PORT=8080
+        fi
+    fi
+fi
 
 mkdir -p "$DATA_DIR"
 
@@ -169,7 +177,7 @@ else
     pkill -f "nokey@localhost.run" 2>/dev/null || true
     pkill -f "serveo.net" 2>/dev/null || true
     rm -f "$DATA_DIR/tunnel.url"
-    setsid python3 "$DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+    PORT=$PORT setsid python3 "$DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
     echo $! > "$DATA_DIR/ssh_tunnel.pid"
 
     for i in {1..30}; do
@@ -193,7 +201,7 @@ bash "$WEATHER_DIR/build.sh"
 echo "[6/6] Installing global 'sshlocation' command..."
 chmod +x "$DIR/sshlocation"
 mkdir -p "$HOME/.local/bin"
-cp -f "$DIR/sshlocation" "$HOME/.local/bin/sshlocation"
+ln -sf "$DIR/sshlocation" "$HOME/.local/bin/sshlocation"
 
 LOCAL_URL="http://localhost:$PORT/?token=$TOKEN"
 
