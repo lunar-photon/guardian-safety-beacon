@@ -125,6 +125,12 @@ def run_tunnel():
                     url = m.group(0).strip()
                     URL_FILE.write_text(url)
                     print(f"[Tunnel:localhost.run] Active endpoint: {url}", flush=True)
+            elif method == "serveo":
+                m = re.search(r'https://[a-zA-Z0-9.-]+\.(?:serveo\.net|serveousercontent\.com)', line)
+                if m:
+                    url = m.group(0).strip()
+                    URL_FILE.write_text(url)
+                    print(f"[Tunnel:Serveo] Active endpoint: {url}", flush=True)
 
         try:
             proc.terminate()
