@@ -19,6 +19,10 @@ REAL_HOME="$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)"
 REAL_UID="${SUDO_UID:-$(id -u)}"
 REAL_GID="${SUDO_GID:-$(id -g)}"
 
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R "$REAL_UID:$REAL_GID" "$DIR" 2>/dev/null || true
+fi
+
 get_free_port() {
     python3 -c "import socket
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
