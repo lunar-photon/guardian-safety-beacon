@@ -435,6 +435,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void callAuthority(String number) {
+            callHelpline(number);
+        }
+
+        @JavascriptInterface
         public void shareLocation(String text) {
             main.post(() -> {
                 try {

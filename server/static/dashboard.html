@@ -361,6 +361,85 @@
     flex-shrink: 0;
   }
 
+  /* ---------------- Call Authority Bar ---------------- */
+  .call-authority-bar-btn {
+    width: 100%; margin-top: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-radius: 13px;
+    background: linear-gradient(135deg, rgba(220,38,38,0.18), rgba(185,28,28,0.08));
+    border: 1px solid rgba(239,68,68,0.38); color: var(--txt);
+    cursor: pointer; transition: all .16s ease; font-family: inherit;
+    box-shadow: 0 4px 14px rgba(220,38,38,0.12);
+  }
+  .call-authority-bar-btn:hover {
+    background: linear-gradient(135deg, rgba(220,38,38,0.26), rgba(185,28,28,0.16));
+    border-color: rgba(239,68,68,0.65); transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(220,38,38,0.22);
+  }
+  .call-authority-bar-btn:active { transform: scale(0.98); }
+  .cab-left { display: flex; align-items: center; gap: 11px; text-align: left; }
+  .cab-icon {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: #ef4444; color: #fff;
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .cab-icon svg { width: 17px; height: 17px; }
+  .cab-text { min-width: 0; }
+  .cab-title { font-size: 13px; font-weight: 750; color: #fee2e2; letter-spacing: -0.01em; }
+  .cab-sub { font-size: 10.5px; color: #fca5a5; margin-top: 1px; opacity: 0.92; }
+  .cab-tag {
+    padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    background: rgba(239,68,68,0.25); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4);
+    flex-shrink: 0;
+  }
+
+  /* ---------------- Authority Modal ---------------- */
+  #authorityModal {
+    position: fixed; inset: 0; z-index: 3600; background: rgba(0,0,0,0.80); backdrop-filter: blur(10px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #authorityModal.active { display: flex; }
+  .am-card {
+    background: var(--surface); border: 1px solid rgba(239,68,68,0.45); border-radius: 20px;
+    padding: 24px 22px; width: 100%; max-width: 380px; box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 30px rgba(220,38,38,0.2);
+    text-align: center; animation: amPopIn .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes amPopIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .am-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px; background: rgba(239,68,68,0.18);
+    color: #ef4444; border: 1px solid rgba(239,68,68,0.35); font-size: 10px; font-weight: 800;
+    letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;
+  }
+  .am-title { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+  .am-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; margin-bottom: 18px; line-height: 1.4; }
+  .am-telemetry {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 16px; text-align: left; display: flex; flex-direction: column; gap: 6px;
+  }
+  .am-tel-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+  .am-tel-row .am-k { color: var(--muted); font-weight: 500; }
+  .am-tel-row .am-v { color: var(--txt); font-weight: 650; }
+  .am-actions { display: flex; flex-direction: column; gap: 9px; }
+  .am-btn {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700;
+    cursor: pointer; text-decoration: none; font-family: inherit; transition: all .14s ease;
+  }
+  .am-btn svg { width: 17px; height: 17px; }
+  .am-btn.primary { background: #ef4444; color: #fff; border: 1px solid #dc2626; }
+  .am-btn.primary:hover { background: #dc2626; transform: translateY(-1px); }
+  .am-btn.secondary { background: var(--surface-2); color: var(--txt); border: 1px solid var(--border); }
+  .am-btn.secondary:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  .am-row-btns { display: flex; gap: 8px; }
+  .am-btn.outline { flex: 1; padding: 10px 12px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--txt); border: 1px solid var(--border); }
+  .am-btn.outline:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  .am-close-btn {
+    margin-top: 14px; background: transparent; border: none; color: var(--muted);
+    font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; font-family: inherit;
+  }
+  .am-close-btn:hover { color: var(--txt); }
+
   /* ---------------- Emergency Helpline Banner ---------------- */
   #emergencyBanner {
     position: fixed; top: 16px; left: calc(var(--sw) + 20px); right: 20px; z-index: 2500;
@@ -470,8 +549,20 @@
       </button>
       <button class="btn" id="rateBtn" onclick="cycleRate()" title="How often my phone reports in">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lab" id="rateLabel">10s</span>
-      </button>
     </div>
+
+    <button class="call-authority-bar-btn" id="callAuthorityBtn" onclick="callAuthority('112')" title="Call 112 emergency helpline / police authority for this phone">
+      <div class="cab-left">
+        <div class="cab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </div>
+        <div class="cab-text">
+          <div class="cab-title">Call Authority (112)</div>
+          <div class="cab-sub" id="cabSubText">Direct emergency police & helpline outreach</div>
+        </div>
+      </div>
+      <span class="cab-tag">EMERGENCY</span>
+    </button>
   </div>
 
   <!-- Tabbed analytics -->
@@ -577,6 +668,43 @@
       </button>
     </div>
     <button class="cam-modal-cancel" onclick="closeCameraModal()">Cancel</button>
+</div>
+
+<!-- Authority Dispatch Modal -->
+<div id="authorityModal" onclick="closeAuthorityModal(event)">
+  <div class="am-card">
+    <div class="am-badge">EMERGENCY OUTREACH</div>
+    <div class="am-title">Call Authorities for Phone</div>
+    <div class="am-sub">Direct emergency helpline dispatch and real-time telemetry for first responders.</div>
+
+    <div class="am-telemetry">
+      <div class="am-tel-row"><span class="am-k">Target Device:</span><span class="am-v" id="amDevName">My Phone</span></div>
+      <div class="am-tel-row"><span class="am-k">GPS Coordinates:</span><span class="am-v num" id="amCoords">—</span></div>
+      <div class="am-tel-row"><span class="am-k">Accuracy:</span><span class="am-v num" id="amAccuracy">—</span></div>
+    </div>
+
+    <div class="am-actions">
+      <a id="amDial112" href="tel:112" class="am-btn primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <span>Call 112 (Police / Emergency)</span>
+      </a>
+      <a id="amDial1091" href="tel:1091" class="am-btn secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <span>Call 1091 (Women Helpline)</span>
+      </a>
+      <div class="am-row-btns">
+        <button class="am-btn outline" onclick="copyAuthorityCoords()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span id="copyCoordsLabel">Copy Coordinates</span>
+        </button>
+        <a id="amMapsLink" href="#" target="_blank" class="am-btn outline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          <span>Open Map</span>
+        </a>
+      </div>
+    </div>
+
+    <button class="am-close-btn" onclick="closeAuthorityModal()">Close</button>
   </div>
 </div>
 
@@ -877,6 +1005,112 @@ async function cycleRate() {
       body: JSON.stringify({ sec: currentRateSec }) });
     showToast(`Reporting every ${label}`);
   } catch (err) { showToast("Couldn't change the interval"); }
+}
+
+/* ---------- Authority / Emergency Calling ---------- */
+function openAuthorityModal(number = "112") {
+  const modal = document.getElementById("authorityModal");
+  if (!modal) return;
+  const devName = currentDevice ? (currentDevice.name || currentDevice.id) : "My Phone";
+  document.getElementById("amDevName").textContent = devName;
+  if (currentPos && currentPos.lat != null) {
+    document.getElementById("amCoords").textContent = `${currentPos.lat.toFixed(5)}, ${currentPos.lon.toFixed(5)}`;
+    const acc = (currentDevice && currentDevice.last_fix && currentDevice.last_fix.accuracy != null) ? `±${Math.round(currentDevice.last_fix.accuracy)} m` : "GPS fix active";
+    document.getElementById("amAccuracy").textContent = acc;
+    document.getElementById("amMapsLink").href = `https://maps.google.com/?q=${currentPos.lat},${currentPos.lon}`;
+  } else {
+    document.getElementById("amCoords").textContent = "Waiting for GPS fix…";
+    document.getElementById("amAccuracy").textContent = "—";
+    document.getElementById("amMapsLink").href = "#";
+  }
+  document.getElementById("amDial112").href = `tel:${number || '112'}`;
+  document.getElementById("amDial1091").href = "tel:1091";
+  modal.classList.add("active");
+}
+
+function closeAuthorityModal(e) {
+  if (e && e.target && e.target.closest && e.target.closest(".am-card") && !e.target.classList.contains("am-close-btn")) return;
+  const modal = document.getElementById("authorityModal");
+  if (modal) modal.classList.remove("active");
+}
+
+function copyAuthorityCoords() {
+  if (!currentPos || currentPos.lat == null) {
+    showToast("No active GPS coordinates available yet");
+    return;
+  }
+  const text = `${currentPos.lat.toFixed(5)}, ${currentPos.lon.toFixed(5)}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Coordinates copied to clipboard: " + text);
+      const btnLabel = document.getElementById("copyCoordsLabel");
+      if (btnLabel) {
+        btnLabel.textContent = "Copied!";
+        setTimeout(() => { btnLabel.textContent = "Copy Coordinates"; }, 2000);
+      }
+    }).catch(() => {
+      showToast("GPS: " + text);
+    });
+  } else {
+    showToast("GPS: " + text);
+  }
+}
+
+async function callAuthority(number = "112") {
+  // 1. If running inside Android app with Stratus JS bridge, trigger native intent
+  if (window.Stratus) {
+    if (typeof window.Stratus.callAuthority === "function") {
+      try { window.Stratus.callAuthority(number); } catch (_) {}
+    } else if (typeof window.Stratus.callHelpline === "function") {
+      try { window.Stratus.callHelpline(number); } catch (_) {}
+    }
+  }
+
+  // 2. Trigger browser dialer intent for the guardian
+  try {
+    const a = document.createElement("a");
+    a.href = `tel:${number}`;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (_) {}
+
+  // 3. Play emergency confirmation audio tone
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.start(); osc.stop(ctx.currentTime + 0.35);
+  } catch (_) {}
+
+  // 4. Notify backend server to record dispatch event and push alert to phone
+  try {
+    showToast(`Dispatching Authority Outreach (${number})…`);
+    const devId = currentDevice ? currentDevice.id : null;
+    await fetch(`/api/authority/call?device_id=${encodeURIComponent(devId || "")}`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + TOKEN,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        device_id: devId,
+        number: number
+      })
+    });
+    showToast(`Authority Outreach Active: Dialing ${number}`);
+  } catch (err) {
+    showToast(`Triggered call to ${number}`);
+  }
+
+  // 5. Open authority modal with live coordinates and maps link for the guardian
+  openAuthorityModal(number);
 }
 
 /* ---------- Statistics ---------- */

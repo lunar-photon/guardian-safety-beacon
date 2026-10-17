@@ -75,7 +75,15 @@ def _extract_token(request: Request) -> str:
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         return auth[7:].strip()
-    return request.query_params.get("token", "")
+    tok = request.query_params.get("token", "")
+    if tok:
+        return tok
+    # Local loopback callers on localhost / 127.0.0.1 are trusted
+    host = request.url.hostname or ""
+    client_host = request.client.host if request.client else ""
+    if host in ("localhost", "127.0.0.1", "::1") or client_host in ("127.0.0.1", "::1"):
+        return TOKEN
+    return ""
 
 
 class Principal:
@@ -647,6 +655,77 @@ def api_config(request: Request, who: Principal = Depends(require_principal)):
     }
 
 
+# ---- emergency authority call ----
+@app.post("/api/authority/call")
+async def api_call_authority(request: Request, _=Depends(require_token)):
+    dev_id = request.query_params.get("device_id")
+    b = {}
+    try:
+        b = await request.json()
+    except Exception:
+        pass
+    dev_id = dev_id or b.get("device_id")
+    number = b.get("number", "112")
+    
+    # Get device fix if available
+    fix = db.last_fix(dev_id) if dev_id else None
+    lat = fix.get("lat") if fix else None
+    lon = fix.get("lon") if fix else None
+    maps_url = f"https://maps.google.com/?q={lat:.5f},{lon:.5f}" if lat is not None and lon is not None else None
+    
+    dev_name = "My Phone"
+    if dev_id:
+        dev_rec = db.get_device(dev_id)
+        if dev_rec and dev_rec.get("name"):
+            dev_name = dev_rec["name"]
+            
+    # 1. Enqueue emergency_helpline command for the device
+    cmd = {
+        "cmd": "emergency_helpline",
+        "args": {
+            "number": number,
+            "zone": "Emergency Guardian Outreach",
+            "lat": lat,
+            "lon": lon,
+            "maps_url": maps_url,
+            "message": f"EMERGENCY: Guardian triggered authority dispatch for {dev_name}. Lat: {lat}, Lon: {lon}. Map: {maps_url}"
+        }
+    }
+    if dev_id:
+        _commands.setdefault(dev_id, []).append(cmd)
+    
+    # 2. Add high-priority emergency event
+    ev = db.add_event(
+        dev_id, "helpline", "critical",
+        f"Guardian triggered emergency call to authority ({number}) for {dev_name}",
+        {"helpline": number, "lat": lat, "lon": lon, "maps_url": maps_url}
+    )
+    
+    # 3. Broadcast helpline_alert to all open dashboards
+    alert_payload = {
+        "kind": "helpline_alert",
+        "device_id": dev_id,
+        "name": dev_name,
+        "helpline": number,
+        "zone": "Emergency Authority Dispatch",
+        "lat": lat,
+        "lon": lon,
+        "maps_url": maps_url,
+        "dwell_s": 0,
+        "event": ev
+    }
+    hub.broadcast(alert_payload)
+    
+    return {
+        "ok": True,
+        "dispatched": True,
+        "number": number,
+        "lat": lat,
+        "lon": lon,
+        "maps_url": maps_url
+    }
+
+
 # ---- places: home / office / learned frequent spots ----
 @app.get("/api/places")
 def api_places(request: Request, _=Depends(require_token)):
@@ -970,7 +1049,10 @@ def api_session_end(request: Request, _=Depends(require_admin_renew)):
 def dashboard(request: Request):
     tok = request.query_params.get("token", "")
     html = (HERE / "static" / "dashboard.html").read_text()
-    return html.replace("__DEFAULT_TOKEN__", TOKEN if tok or lan_ip() in str(request.base_url) else "")
+    host = request.url.hostname or ""
+    client_host = request.client.host if request.client else ""
+    is_local = host in ("localhost", "127.0.0.1", "::1") or client_host in ("127.0.0.1", "::1") or (lan_ip() in str(request.base_url))
+    return html.replace("__DEFAULT_TOKEN__", TOKEN if tok or is_local else "")
 
 
 @app.get("/app")

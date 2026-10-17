@@ -416,6 +416,15 @@ def list_devices():
     return out
 
 
+def get_device(device_id):
+    r = _conn().execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d.pop("token", None)
+    return d
+
+
 def last_ping(device_id):
     r = _conn().execute(
         "SELECT * FROM pings WHERE device_id=? ORDER BY ts DESC LIMIT 1", (device_id,)
