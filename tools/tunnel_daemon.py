@@ -44,6 +44,7 @@ def get_config():
 def run_tunnel():
     global running
     cfg = get_config()
+    method = cfg.get("METHOD", "localhost.run")
     port_val = os.environ.get("PORT")
     if not port_val and (DATA_DIR / "server.port").exists():
         try:

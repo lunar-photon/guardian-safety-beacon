@@ -81,6 +81,9 @@ case "$USER_CHOICE" in
             read -r -p "  Enter desired subdomain (default: $DEFAULT_SUB): " SERVEO_SUBDOMAIN
         fi
         SERVEO_SUBDOMAIN="${SERVEO_SUBDOMAIN:-$DEFAULT_SUB}"
+        if [ "$SERVEO_SUBDOMAIN" == "1" ]; then
+            SERVEO_SUBDOMAIN="$DEFAULT_SUB"
+        fi
         echo ""
         echo "Notice: To permanently reserve '$SERVEO_SUBDOMAIN.serveo.net' to your laptop,"
         echo "open this 1-time link to sign in with Google or GitHub:"
