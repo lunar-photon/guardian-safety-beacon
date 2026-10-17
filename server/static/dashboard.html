@@ -180,6 +180,51 @@
            background: #0b1220; cursor: pointer; transition: transform .15s, border-color .15s; }
   .thumb:hover { transform: scale(1.04); border-color: var(--accent); }
 
+  /* photos gallery & cards */
+  .photos-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .photos-title { font-size: 14px; font-weight: 700; color: var(--txt); }
+  .photos-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .photo-card {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
+    display: flex; flex-direction: column;
+  }
+  .photo-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--shadow); }
+  .photo-card-img-wrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #070a12; overflow: hidden; }
+  .photo-card-img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s ease; display: block; }
+  .photo-card:hover .photo-card-img { transform: scale(1.04); }
+  .photo-tag {
+    position: absolute; top: 6px; left: 6px; z-index: 2;
+    padding: 2px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 750;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .photo-tag.front { background: rgba(168,85,247,0.75); color: #fff; border: 1px solid rgba(168,85,247,0.4); }
+  .photo-tag.back { background: rgba(59,130,246,0.75); color: #fff; border: 1px solid rgba(59,130,246,0.4); }
+  .photo-tag.general { background: rgba(15,23,42,0.75); color: #e2e8f0; border: 1px solid var(--border); }
+  .photo-card-info { padding: 8px 10px; font-size: 11px; }
+  .photo-card-time { font-family: var(--mono); color: var(--txt); font-weight: 600; font-size: 11px; }
+  .photo-card-date { color: var(--muted); font-size: 10px; margin-top: 1px; }
+
+  /* overview recent photos preview box */
+  .overview-photos-box { margin-top: 14px; padding: 12px 14px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--border); }
+  .opb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .opb-title { font-size: 12px; font-weight: 700; color: var(--txt); letter-spacing: -0.01em; }
+  .opb-link { font-size: 11px; font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: none; }
+  .opb-link:hover { text-decoration: underline; }
+  .opb-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .opb-thumb-wrap { position: relative; flex-shrink: 0; width: 68px; height: 68px; border-radius: 9px; overflow: hidden; border: 1px solid var(--border); cursor: pointer; background: #070a12; }
+  .opb-thumb { width: 100%; height: 100%; object-fit: cover; transition: transform .15s; }
+  .opb-thumb-wrap:hover .opb-thumb { transform: scale(1.08); }
+  .opb-badge { position: absolute; bottom: 3px; right: 3px; font-size: 8px; font-weight: 800; padding: 1px 4px; border-radius: 4px; text-transform: uppercase; background: rgba(0,0,0,0.65); color: #fff; }
+
+  .tab-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px;
+    font-size: 9.5px; font-weight: 700; background: var(--accent); color: var(--accent-ink);
+    margin-left: 3px; vertical-align: middle;
+  }
+
   /* activity timeline */
   .event { display: flex; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
   .event:last-child { border-bottom: none; }
@@ -571,6 +616,7 @@
     <div class="tabs">
       <button class="tab active" id="tabStats" onclick="switchTab('stats')">Overview</button>
       <button class="tab" id="tabPlaces" onclick="switchTab('places')">Places</button>
+      <button class="tab" id="tabPhotos" onclick="switchTab('photos')">Photos <span id="photoBadge" class="tab-badge" style="display:none">0</span></button>
       <button class="tab" id="tabSignals" onclick="switchTab('signals')">Signals</button>
       <button class="tab" id="tabLog" onclick="switchTab('log')">Activity</button>
     </div>
@@ -587,9 +633,31 @@
           </button>
         </div>
         <div class="scards" id="statCards"><div class="empty" style="grid-column:1/-1">Loading your statistics…</div></div>
+        <div class="overview-photos-box" id="overviewPhotosBox" style="display:none;">
+          <div class="opb-head">
+            <span class="opb-title">Recent Snapshots</span>
+            <span class="opb-link" onclick="switchTab('photos')">View all (<span id="overviewPhotoCount">0</span>) →</span>
+          </div>
+          <div class="opb-strip" id="overviewPhotoStrip"></div>
+        </div>
       </div>
       <div id="viewPlaces" style="display:none">
         <div id="placesList"><div class="empty">No places yet — they build up as your phone reports locations.</div></div>
+      </div>
+      <div id="viewPhotos" style="display:none">
+        <div class="photos-header">
+          <div>
+            <div class="photos-title">Captured Photos & Evidence</div>
+            <div class="photos-sub" id="photosSub">Live snapshots from front and rear cameras</div>
+          </div>
+          <button class="btn" style="padding: 6px 12px; font-size: 11px; flex-direction: row; gap: 6px;" onclick="requestPhoto()" title="Take snapshot now">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg>
+            <span>Take Photo</span>
+          </button>
+        </div>
+        <div id="photosContainer">
+          <div class="empty">No photos captured yet. Use the "Photo" button above to request snapshots from front or back cameras.</div>
+        </div>
       </div>
       <div id="viewSignals" style="display:none">
         <div class="signals-header">
@@ -828,6 +896,7 @@ async function refreshState() {
     updateEvents(data.events || []);
     updateHomeDistance();
     renderSignals(dev);
+    renderPhotos(latestFrames);
 
     // Check recent events for active helpline alert
     const recentHelpline = (data.events || []).find(e => e.type === "helpline" && (data.now - (e.ts || 0) < 900));
@@ -1274,14 +1343,86 @@ function switchTab(tab) {
   activeTab = tab;
   document.getElementById("tabStats").classList.toggle("active", tab === "stats");
   document.getElementById("tabPlaces").classList.toggle("active", tab === "places");
+  document.getElementById("tabPhotos").classList.toggle("active", tab === "photos");
   document.getElementById("tabSignals").classList.toggle("active", tab === "signals");
   document.getElementById("tabLog").classList.toggle("active", tab === "log");
   document.getElementById("viewStats").style.display   = tab === "stats"   ? "block" : "none";
   document.getElementById("viewPlaces").style.display  = tab === "places"  ? "block" : "none";
+  document.getElementById("viewPhotos").style.display  = tab === "photos"  ? "block" : "none";
   document.getElementById("viewSignals").style.display = tab === "signals" ? "block" : "none";
   document.getElementById("viewLog").style.display     = tab === "log"     ? "block" : "none";
   if ((tab === "stats" || tab === "places") && !lastStats) loadStats();
+  if (tab === "photos") renderPhotos(latestFrames);
   if (tab === "signals") renderSignals(currentDevice);
+}
+
+/* ---------- Photos Gallery ---------- */
+function renderPhotos(frames) {
+  const container = document.getElementById("photosContainer");
+  const badge = document.getElementById("photoBadge");
+  const opb = document.getElementById("overviewPhotosBox");
+  const opbStrip = document.getElementById("overviewPhotoStrip");
+  const opbCount = document.getElementById("overviewPhotoCount");
+  const sub = document.getElementById("photosSub");
+
+  if (!frames || !frames.length) {
+    if (badge) badge.style.display = "none";
+    if (opb) opb.style.display = "none";
+    if (container) container.innerHTML = '<div class="empty">No photos captured yet. Use the "Photo" button above to request snapshots from front or back cameras.</div>';
+    if (sub) sub.textContent = "Live snapshots from front and rear cameras";
+    return;
+  }
+
+  // Sort frames newest first
+  const sorted = [...frames].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  if (badge) {
+    badge.textContent = sorted.length;
+    badge.style.display = "inline-block";
+  }
+  if (opbCount) opbCount.textContent = sorted.length;
+  if (sub) sub.textContent = `${sorted.length} photo${sorted.length > 1 ? "s" : ""} captured`;
+
+  // Render overview preview strip (top 8 newest)
+  if (opb && opbStrip) {
+    opb.style.display = "block";
+    opbStrip.innerHTML = sorted.slice(0, 8).map(f => {
+      const u = frameUrl(f);
+      const isFront = (f.kind || "").toLowerCase().includes("front");
+      const isBack = (f.kind || "").toLowerCase().includes("back");
+      const tagText = isFront ? "F" : (isBack ? "B" : "IMG");
+      return `<div class="opb-thumb-wrap" onclick="openLightbox('${u}')" title="Click to view full photo">
+        <img class="opb-thumb" src="${u}" loading="lazy" alt="Snapshot">
+        <span class="opb-badge">${tagText}</span>
+      </div>`;
+    }).join("");
+  }
+
+  // Render full photos grid
+  if (container) {
+    container.innerHTML = `<div class="photos-grid">${sorted.map(f => {
+      const u = frameUrl(f);
+      const k = (f.kind || "").toLowerCase();
+      let tagClass = "general", tagLabel = "SNAPSHOT";
+      if (k.includes("front")) { tagClass = "front"; tagLabel = "FRONT CAM"; }
+      else if (k.includes("back")) { tagClass = "back"; tagLabel = "BACK CAM"; }
+
+      const d = f.ts ? new Date(f.ts * 1000) : new Date();
+      const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const dateStr = d.toLocaleDateString([], { month: "short", day: "numeric" });
+
+      return `<div class="photo-card" onclick="openLightbox('${u}')" title="Click to view full size">
+        <div class="photo-card-img-wrap">
+          <span class="photo-tag ${tagClass}">${tagLabel}</span>
+          <img class="photo-card-img" src="${u}" loading="lazy" alt="Captured photo">
+        </div>
+        <div class="photo-card-info">
+          <div class="photo-card-time">${timeStr}</div>
+          <div class="photo-card-date">${dateStr}</div>
+        </div>
+      </div>`;
+    }).join("")}</div>`;
+  }
 }
 
 /* ---------- Signals (Wi-Fi & Bluetooth) ---------- */
@@ -1425,6 +1566,17 @@ function connectWebSocket() {
               });
             } catch (_) {}
           }
+        }
+        if (m.kind === "frame") {
+          if (m.frame) {
+            const exists = latestFrames.some(f => f.path === m.frame.path);
+            if (!exists) {
+              latestFrames.unshift(m.frame);
+              renderPhotos(latestFrames);
+            }
+          }
+          const camLabel = (m.frame && m.frame.kind && m.frame.kind.toLowerCase().includes("front")) ? "front camera" : ((m.frame && m.frame.kind && m.frame.kind.toLowerCase().includes("back")) ? "back camera" : "camera");
+          showToast(`Snapshot received from ${camLabel}`);
         }
         if (m.kind === "ping" && m.ping && currentDevice) {
           if (m.ping.wifi) currentDevice.wifi = m.ping.wifi;

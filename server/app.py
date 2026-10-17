@@ -583,7 +583,7 @@ def api_state(request: Request, _=Depends(require_token)):
     return {
         "devices": devices,
         "events": db.recent_events(80),
-        "frames": db.recent_frames(limit=12),
+        "frames": db.recent_frames(limit=60),
         "geofences": db.list_geofences(),
         "places": db.list_places(),
         "offline_timeout": OFFLINE_TIMEOUT,
