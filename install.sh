@@ -12,6 +12,13 @@ DATA_DIR="$SERVER_DIR/data"
 CONFIG_FILE="$DATA_DIR/tunnel.config"
 WEATHER_DIR="$DIR/weather"
 TOKEN_FILE="$SERVER_DIR/.safety_token"
+
+REAL_USER="${SUDO_USER:-$(whoami)}"
+REAL_HOME="$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)"
+[ -z "$REAL_HOME" ] && REAL_HOME="$(eval echo "~$REAL_USER")"
+REAL_UID="${SUDO_UID:-$(id -u)}"
+REAL_GID="${SUDO_GID:-$(id -g)}"
+
 get_free_port() {
     python3 -c "import socket
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,12 +28,8 @@ s.close()" 2>/dev/null || echo 0
 }
 
 mkdir -p "$DATA_DIR"
-if [ ! -w "$DATA_DIR" ] || ([ -f "$CONFIG_FILE" ] && [ ! -w "$CONFIG_FILE" ]); then
-    if command -v sudo >/dev/null 2>&1; then
-        sudo -n chown -R "$(id -u):$(id -g)" "$DATA_DIR" 2>/dev/null || true
-    fi
-    chmod -R u+w "$DATA_DIR" 2>/dev/null || true
-fi
+chown -R "$REAL_UID:$REAL_GID" "$DATA_DIR" 2>/dev/null || true
+chmod -R u+w "$DATA_DIR" 2>/dev/null || true
 
 # Detect available port: reuse running server port or pick whatever port is free on this device
 if [ -z "$PORT" ] && [ -f "$DATA_DIR/server.port" ] && [ -s "$DATA_DIR/server.port" ]; then
@@ -41,6 +44,7 @@ if [ -z "$PORT" ] || [ "$PORT" -eq 0 ]; then
 fi
 
 echo "$PORT" > "$DATA_DIR/server.port" 2>/dev/null || true
+chown "$REAL_UID:$REAL_GID" "$DATA_DIR/server.port" 2>/dev/null || true
 export PORT
 
 echo "=================================================="
@@ -148,6 +152,15 @@ if [ ! -d "$SERVER_DIR/.venv" ]; then
     fi
 
     if [ ! -f "$SERVER_DIR/.venv/bin/pip" ]; then
+        if [ "$(id -u)" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
+            echo "[2/6] System pip/venv missing. Installing via apt-get..."
+            apt-get update -qq && apt-get install -y -qq python3-venv python3-pip python3-full || true
+            rm -rf "$SERVER_DIR/.venv"
+            python3 -m venv "$SERVER_DIR/.venv" 2>/dev/null || true
+        fi
+    fi
+
+    if [ ! -f "$SERVER_DIR/.venv/bin/pip" ]; then
         PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "3")"
         echo ""
         echo "Error: Python venv/pip package is missing on your system."
@@ -161,9 +174,11 @@ if [ ! -d "$SERVER_DIR/.venv" ]; then
 
     "$SERVER_DIR/.venv/bin/pip" install --quiet --upgrade pip 2>/dev/null || true
     "$SERVER_DIR/.venv/bin/pip" install --quiet -r "$SERVER_DIR/requirements.txt"
+    chown -R "$REAL_UID:$REAL_GID" "$SERVER_DIR/.venv" 2>/dev/null || true
 else
     echo "[2/6] Python virtual environment ready."
     "$SERVER_DIR/.venv/bin/pip" install --quiet -r "$SERVER_DIR/requirements.txt"
+    chown -R "$REAL_UID:$REAL_GID" "$SERVER_DIR/.venv" 2>/dev/null || true
 fi
 
 # ----------------------------------------------------------------------------
@@ -173,6 +188,7 @@ if [ ! -f "$TOKEN_FILE" ] || [ ! -s "$TOKEN_FILE" ]; then
     echo "[3/6] Generating security token..."
     python3 -c "import secrets; print(secrets.token_urlsafe(24))" > "$TOKEN_FILE"
     chmod 600 "$TOKEN_FILE"
+    chown "$REAL_UID:$REAL_GID" "$TOKEN_FILE" 2>/dev/null || true
 else
     echo "[3/6] Safety token present."
 fi
@@ -181,9 +197,13 @@ TOKEN="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
 # ----------------------------------------------------------------------------
 # 4. Start Server & Connect Tunnel
 # ----------------------------------------------------------------------------
-echo "[4/6] Starting server and connecting tunnel..."
+echo "[4/6] Starting server on free automatic port $PORT and connecting tunnel..."
 pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
-setsid bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
+if [ -n "$SUDO_USER" ]; then
+    setsid sudo -u "$REAL_USER" bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
+else
+    setsid bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
+fi
 
 for i in {1..25}; do
     if curl -s "http://127.0.0.1:$PORT/api/session" > /dev/null 2>&1; then
@@ -201,8 +221,13 @@ else
     pkill -f "nokey@localhost.run" 2>/dev/null || true
     pkill -f "serveo.net" 2>/dev/null || true
     rm -f "$DATA_DIR/tunnel.url"
-    PORT=$PORT setsid python3 "$DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+    if [ -n "$SUDO_USER" ]; then
+        PORT=$PORT setsid sudo -u "$REAL_USER" python3 "$DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+    else
+        PORT=$PORT setsid python3 "$DIR/tools/tunnel_daemon.py" >> "$DATA_DIR/ssh_daemon.log" 2>&1 &
+    fi
     echo $! > "$DATA_DIR/ssh_tunnel.pid"
+    chown "$REAL_UID:$REAL_GID" "$DATA_DIR/ssh_tunnel.pid" 2>/dev/null || true
 
     for i in {1..30}; do
         if [ -f "$DATA_DIR/tunnel.url" ] && [ -s "$DATA_DIR/tunnel.url" ]; then
@@ -217,15 +242,21 @@ fi
 # 5. Compile Stratus APK
 # ----------------------------------------------------------------------------
 echo "[5/6] Building Android APK (Stratus.apk)..."
-bash "$WEATHER_DIR/build.sh"
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$REAL_USER" HOME="$REAL_HOME" bash "$WEATHER_DIR/build.sh"
+else
+    bash "$WEATHER_DIR/build.sh"
+fi
 
 # ----------------------------------------------------------------------------
 # 6. Install Global 'sshlocation' Command
 # ----------------------------------------------------------------------------
 echo "[6/6] Installing global 'sshlocation' command..."
 chmod +x "$DIR/sshlocation"
-mkdir -p "$HOME/.local/bin"
-ln -sf "$DIR/sshlocation" "$HOME/.local/bin/sshlocation"
+mkdir -p "$REAL_HOME/.local/bin"
+ln -sf "$DIR/sshlocation" "$REAL_HOME/.local/bin/sshlocation"
+chown -h "$REAL_UID:$REAL_GID" "$REAL_HOME/.local/bin/sshlocation" 2>/dev/null || true
+chown -R "$REAL_UID:$REAL_GID" "$DIR" 2>/dev/null || true
 
 LOCAL_URL="http://localhost:$PORT/?token=$TOKEN"
 
@@ -237,7 +268,7 @@ echo "Local Dashboard  : $LOCAL_URL"
 if [ -n "$PUBLIC_URL" ]; then
     echo "Public Tracking  : $PUBLIC_URL"
 fi
-echo "APK Location     : $HOME/Downloads/Stratus.apk"
+echo "APK Location     : $REAL_HOME/Downloads/Stratus.apk"
 echo "Tunnel Method    : $SELECTED_METHOD"
 echo "Hosting Mode     : Continuous & Permanent (Never expires)"
 echo ""
@@ -250,7 +281,9 @@ echo "=================================================="
 echo ""
 
 # Open tracking webpage
-if which xdg-open > /dev/null 2>&1; then
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$REAL_USER" DISPLAY="${DISPLAY:-:0}" xdg-open "$LOCAL_URL" > /dev/null 2>&1 || true
+elif which xdg-open > /dev/null 2>&1; then
     xdg-open "$LOCAL_URL" > /dev/null 2>&1 || true
 elif which python3 > /dev/null 2>&1; then
     python3 -m webbrowser "$LOCAL_URL" > /dev/null 2>&1 || true
