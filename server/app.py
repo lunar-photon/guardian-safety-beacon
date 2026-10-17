@@ -356,7 +356,17 @@ def dispatch_helpline_alert(device_id: str, name: str, lat: float, lon: float, a
 
 
 def check_geofences(device_id, lat, lon, speed=None, accuracy=None, name=None):
-    fences = db.list_geofences()
+    fences = list(db.list_geofences())
+    for p in db.list_places(device_id):
+        if p.get("kind") == "danger" and not any(f.get("kind") == "danger" and _haversine_m(p["lat"], p["lon"], f["lat"], f["lon"]) < 40 for f in fences):
+            fences.append({
+                "id": f"place_{p['id']}",
+                "name": p["name"],
+                "lat": p["lat"],
+                "lon": p["lon"],
+                "radius": p.get("radius") or 250,
+                "kind": "danger"
+            })
     state = _zone_state.setdefault(device_id, {})
     dwell_map = _danger_dwell.setdefault(device_id, {})
     now = time.time()
@@ -774,15 +784,32 @@ def api_places(request: Request, _=Depends(require_token)):
 async def api_add_place(request: Request, who: Principal = Depends(require_principal)):
     b = await request.json()
     device_id = who.device_id or b.get("device_id")      # a device can only add its own places
+    lat = float(b["lat"])
+    lon = float(b["lon"])
+    radius = float(b.get("radius", 150))
+    kind = b.get("kind", "custom")
+    name = b.get("name", "Place")
     pid = db.set_or_update_place(
         device_id,
-        b.get("name", "Place"),
-        float(b["lat"]),
-        float(b["lon"]),
-        float(b.get("radius", 150)),
-        b.get("kind", "custom")
+        name,
+        lat,
+        lon,
+        radius,
+        kind
     )
+    if kind == "danger":
+        fences = db.list_geofences()
+        exists = any(f["kind"] == "danger" and _haversine_m(lat, lon, f["lat"], f["lon"]) < 60 for f in fences)
+        if not exists:
+            db.add_geofence(name, lat, lon, radius if radius > 150 else 250, "danger")
+    elif kind in ("home", "office"):
+        fences = db.list_geofences()
+        for f in fences:
+            if f["kind"] == "danger" and _haversine_m(lat, lon, f["lat"], f["lon"]) < 80:
+                db.delete_geofence(f["id"])
+
     _place_state.pop(device_id, None)
+    _zone_state.pop(device_id, None)
     hub.broadcast({"kind": "refresh"})
     return {"ok": True, "id": pid}
 
@@ -791,6 +818,8 @@ async def api_add_place(request: Request, who: Principal = Depends(require_princ
 async def api_rename_place(pid: int, request: Request, _=Depends(require_token)):
     b = await request.json()
     db.rename_place(pid, b["name"], b.get("kind"))
+    _place_state.clear()
+    _zone_state.clear()
     hub.broadcast({"kind": "refresh"})
     return {"ok": True}
 
@@ -803,6 +832,7 @@ def api_clear_places(request: Request, _=Depends(require_token)):
         _place_state.pop(dev_id, None)
     else:
         _place_state.clear()
+    _zone_state.clear()
     hub.broadcast({"kind": "places_cleared", "device_id": dev_id})
     return {"ok": True, "message": "Places cleared"}
 
@@ -814,7 +844,16 @@ def api_clear_places_delete(request: Request, _=Depends(require_token)):
 
 @app.delete("/api/places/{pid}")
 def api_del_place(pid: int, request: Request, _=Depends(require_token)):
+    places = db.list_places()
+    target = next((p for p in places if p["id"] == pid), None)
+    if target and target.get("kind") == "danger":
+        fences = db.list_geofences()
+        for f in fences:
+            if f["kind"] == "danger" and _haversine_m(target["lat"], target["lon"], f["lat"], f["lon"]) < 80:
+                db.delete_geofence(f["id"])
     db.delete_place(pid)
+    _place_state.clear()
+    _zone_state.clear()
     hub.broadcast({"kind": "refresh"})
     return {"ok": True}
 
