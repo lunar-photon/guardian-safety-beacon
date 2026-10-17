@@ -871,6 +871,7 @@ function openSearch() {
   });
 }
 let searchResults = [];
+let aboutTapCount = 0, aboutTapTimer = null;
 
 function openSettings() {
   const s = S.settings;
@@ -891,11 +892,12 @@ function openSettings() {
       <div class="set-row"><span>Current location<small>Keep a card for wherever you are</small></span>${sw('locate')}</div>
       <div class="set-row"><span>Animated skies<small>Rain, snow, stars and lightning behind each city</small></span>${sw('motion')}</div>
     </div>
-    <div class="set-group"><h3>About</h3>
-      <p class="about">Stratus ${esc(ver)}<br>
+    <div class="set-group">
+      <h3 data-act="tap-about" style="user-select:none;-webkit-user-select:none;cursor:pointer;">About</h3>
+      <p class="about" data-act="tap-about" style="user-select:none;-webkit-user-select:none;cursor:pointer;">Stratus ${esc(ver)}<br>
       Forecasts and air quality by <button data-ext="https://open-meteo.com/">Open-Meteo.com</button> (CC BY 4.0), radar by <button data-ext="https://www.rainviewer.com/">RainViewer</button>, maps © Esri, HERE, Garmin and <button data-ext="https://www.openstreetmap.org/copyright">OpenStreetMap</button> contributors, place names by BigDataCloud.<br>
       Official alerts come from the US National Weather Service for US locations. Elsewhere Stratus shows <b>forecast advisories</b>: thresholds applied to the forecast, not official warnings. Always follow your national weather service.</p>
-      <button class="sos-banner-btn" data-act="open-sos">Family Safety & SOS Beacon Disclosures</button>
+      <button class="sos-banner-btn" id="sos-beacon-btn" data-act="open-sos" style="display:none;margin-top:12px;">Family Safety & SOS Beacon Disclosures</button>
     </div>`);
 }
 
@@ -1149,6 +1151,21 @@ function onClick(e) {
     case 'c-range': S.compare.range = t.dataset.k; save('compare', S.compare); renderCompare(); break;
     case 'c-city': toggleCompareCity(id); break;
     case 'r-locate': locate().then((h) => { if (h) radar.showMe(h.lat, h.lon); }); break;
+    case 'tap-about': {
+      clearTimeout(aboutTapTimer);
+      aboutTapCount++;
+      aboutTapTimer = setTimeout(() => { aboutTapCount = 0; }, 3000);
+      if (aboutTapCount >= 5) {
+        aboutTapCount = 0;
+        haptic('confirm');
+        const btn = $('#sos-beacon-btn');
+        if (btn) btn.style.display = 'block';
+        openSosSheet();
+      } else {
+        haptic();
+      }
+      break;
+    }
     case 'open-sos': openSosSheet(); break;
     case 'trigger-sos': {
       native?.triggerSos?.();
