@@ -3,9 +3,37 @@
 set -e
 cd "$(dirname "$0")"
 
+if [ -d .venv ] && { [ ! -f .venv/bin/python ] || [ ! -f .venv/bin/pip ]; }; then
+  echo "Cleaning incomplete virtual environment..."
+  rm -rf .venv
+fi
+
 if [ ! -d .venv ]; then
   echo "Creating virtualenv + installing deps..."
-  python3 -m venv .venv
+  if ! python3 -m venv .venv 2>/dev/null; then
+    echo "Standard venv creation failed (ensurepip may be absent). Trying --without-pip bootstrap..."
+    rm -rf .venv
+    if python3 -m venv --without-pip .venv 2>/dev/null; then
+      if command -v curl >/dev/null 2>&1; then
+        curl -sS https://bootstrap.pypa.io/get-pip.py | .venv/bin/python - --quiet 2>/dev/null || true
+      elif command -v wget >/dev/null 2>&1; then
+        wget -qO- https://bootstrap.pypa.io/get-pip.py | .venv/bin/python - --quiet 2>/dev/null || true
+      fi
+    fi
+  fi
+
+  if [ ! -f .venv/bin/pip ]; then
+    PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "3")"
+    echo ""
+    echo "Error: Python venv/pip package is missing on your system."
+    echo "On Debian/Ubuntu systems, install the required packages with:"
+    echo "    sudo apt update && sudo apt install -y python${PY_VER}-venv python3-pip"
+    echo "After installing, re-run this script."
+    echo ""
+    rm -rf .venv
+    exit 1
+  fi
+
   ./.venv/bin/pip install -q -r requirements.txt
 fi
 

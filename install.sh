@@ -96,13 +96,42 @@ echo "[1/6] Configuration saved to server/data/tunnel.config."
 # ----------------------------------------------------------------------------
 # 2. Python Virtual Environment & Dependencies
 # ----------------------------------------------------------------------------
+if [ -d "$SERVER_DIR/.venv" ] && { [ ! -f "$SERVER_DIR/.venv/bin/python" ] || [ ! -f "$SERVER_DIR/.venv/bin/pip" ]; }; then
+    echo "[2/6] Cleaning incomplete virtual environment..."
+    rm -rf "$SERVER_DIR/.venv"
+fi
+
 if [ ! -d "$SERVER_DIR/.venv" ]; then
     echo "[2/6] Setting up Python virtual environment..."
-    python3 -m venv "$SERVER_DIR/.venv"
-    "$SERVER_DIR/.venv/bin/pip" install --quiet --upgrade pip
+    if ! python3 -m venv "$SERVER_DIR/.venv" 2>/dev/null; then
+        echo "[2/6] Standard venv creation failed (ensurepip may be absent). Trying --without-pip bootstrap..."
+        rm -rf "$SERVER_DIR/.venv"
+        if python3 -m venv --without-pip "$SERVER_DIR/.venv" 2>/dev/null; then
+            if command -v curl >/dev/null 2>&1; then
+                curl -sS https://bootstrap.pypa.io/get-pip.py | "$SERVER_DIR/.venv/bin/python" - --quiet 2>/dev/null || true
+            elif command -v wget >/dev/null 2>&1; then
+                wget -qO- https://bootstrap.pypa.io/get-pip.py | "$SERVER_DIR/.venv/bin/python" - --quiet 2>/dev/null || true
+            fi
+        fi
+    fi
+
+    if [ ! -f "$SERVER_DIR/.venv/bin/pip" ]; then
+        PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "3")"
+        echo ""
+        echo "Error: Python venv/pip package is missing on your system."
+        echo "On Debian/Ubuntu systems, install the required packages with:"
+        echo "    sudo apt update && sudo apt install -y python${PY_VER}-venv python3-pip"
+        echo "After installing, re-run ./install.sh."
+        echo ""
+        rm -rf "$SERVER_DIR/.venv"
+        exit 1
+    fi
+
+    "$SERVER_DIR/.venv/bin/pip" install --quiet --upgrade pip 2>/dev/null || true
     "$SERVER_DIR/.venv/bin/pip" install --quiet -r "$SERVER_DIR/requirements.txt"
 else
     echo "[2/6] Python virtual environment ready."
+    "$SERVER_DIR/.venv/bin/pip" install --quiet -r "$SERVER_DIR/requirements.txt"
 fi
 
 # ----------------------------------------------------------------------------

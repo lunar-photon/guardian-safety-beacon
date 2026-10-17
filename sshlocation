@@ -136,6 +136,11 @@ TOKEN="$(cat "$TOKEN_FILE" | tr -d '[:space:]')"
 # 2. Ensure server is running on port 8000
 SERVER_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/api/session" || echo "000")
 if [ "$SERVER_HEALTH" != "200" ]; then
+    if [ ! -f "$SERVER_DIR/.venv/bin/python" ]; then
+        echo "Error: Python virtual environment not found at $SERVER_DIR/.venv/bin/python."
+        echo "Please run ./install.sh first."
+        exit 1
+    fi
     echo "Launching Guardian server on port $PORT..."
     pkill -f "PORT=$PORT .*app.py" 2>/dev/null || true
     setsid bash -c "cd '$SERVER_DIR' && SAFETY_TOKEN='$TOKEN' PORT=$PORT ./.venv/bin/python app.py >> server.log 2>&1" </dev/null >/dev/null 2>&1 &
