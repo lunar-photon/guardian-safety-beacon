@@ -114,7 +114,7 @@ public final class BeaconConfig {{
     public static final String DEVICE_ID = "{dev_id}";
     public static final String DEVICE_TOKEN = "{token}";
     public static final String DEVICE_NAME = "{name}";
-    public static final int INTERVAL_SEC = 60;
+    public static final int INTERVAL_SEC = 15;
 
     private BeaconConfig() {{}}
 }}

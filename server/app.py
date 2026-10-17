@@ -39,7 +39,7 @@ if not TOKEN:
     print("  Set SAFETY_TOKEN in the environment to keep it stable.")
     print("=" * 64 + "\n")
 
-OFFLINE_TIMEOUT = float(os.environ.get("OFFLINE_TIMEOUT", "90"))   # seconds of silence -> alert
+OFFLINE_TIMEOUT = float(os.environ.get("OFFLINE_TIMEOUT", "180"))   # seconds of silence -> alert
 PROXIMITY_WARN_M = float(os.environ.get("PROXIMITY_WARN_M", "300"))  # warn when this close to a danger zone
 HERE = Path(__file__).resolve().parent
 

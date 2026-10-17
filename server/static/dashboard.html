@@ -75,8 +75,14 @@
     display: flex; flex-direction: column;
     background: var(--surface); border-right: 1px solid var(--border);
     box-shadow: var(--shadow);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
   }
-  .pad { padding: 18px 20px; }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 4px; }
+  .pad { padding: 18px 20px 14px; flex-shrink: 0; }
 
   /* identity row */
   .idrow { display: flex; align-items: center; gap: 12px; }
@@ -137,8 +143,19 @@
   .btn .lab { font-variant-numeric: tabular-nums; }
 
   /* ---------------- Tabbed section ---------------- */
-  .section { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
-  .tabs { display: flex; gap: 2px; padding: 12px 20px 0; }
+  .section {
+    flex: 1 0 auto;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+  }
+  .tabs {
+    display: flex; gap: 2px; padding: 12px 20px 0;
+    position: sticky; top: 0; z-index: 10;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
   .tab {
     flex: 1; padding: 9px 4px; border: none; background: transparent; cursor: pointer;
     font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted);
@@ -147,7 +164,11 @@
   .tab:hover { color: var(--txt); }
   .tab.active { color: var(--txt); border-bottom-color: var(--accent); }
 
-  .body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 20px; }
+  .body {
+    flex: 1 0 auto;
+    overflow-y: visible;
+    padding: 14px 20px 24px;
+  }
   .body::-webkit-scrollbar { width: 6px; }
   .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
   .empty { color: var(--muted); font-size: 13px; padding: 28px 6px; text-align: center; }
@@ -273,6 +294,26 @@
   .sheet-toggle svg { width: 15px; height: 15px; color: var(--accent); }
   .grab { display: none; }
 
+  @media (max-height: 850px) {
+    .pad { padding: 12px 16px 10px; }
+    .headline { margin-top: 10px; padding: 10px 14px; }
+    .headline .eyebrow { font-size: 10px; }
+    .headline .v { font-size: 24px; margin-top: 4px; }
+    .mgrid { gap: 6px; margin-top: 8px; }
+    .mcell { padding: 7px 10px; }
+    .mcell .k { font-size: 9.5px; }
+    .mcell .v { font-size: 13px; margin-top: 2px; }
+    .controls { gap: 6px; margin-top: 8px; }
+    .btn { padding: 7px 4px; font-size: 10px; }
+    .btn svg { width: 15px; height: 15px; }
+    .call-authority-bar-btn { margin-top: 8px; padding: 7px 12px; }
+    .cab-title { font-size: 12px; }
+    .cab-sub { font-size: 10px; }
+    .tabs { padding: 8px 16px 0; }
+    .tab { font-size: 11.5px; padding: 7px 2px; }
+    .body { padding: 10px 16px 20px; }
+  }
+
   @media (max-width: 860px) {
     #map { inset: 0; }
     .sidebar { display: contents; }
@@ -283,19 +324,22 @@
       top: max(14px, env(safe-area-inset-top));
       left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
       width: auto; max-width: 420px; margin: 0 auto;
-      background: rgba(15,20,32,0.82); backdrop-filter: blur(16px) saturate(140%);
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      background: rgba(15,20,32,0.88); backdrop-filter: blur(16px) saturate(140%);
       -webkit-backdrop-filter: blur(16px) saturate(140%);
       border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
     }
     /* bottom sheet = tabbed section */
     .section {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 1001;
-      max-height: 72vh; border-top: 1px solid var(--border);
+      max-height: 85vh; border-top: 1px solid var(--border);
       border-top-left-radius: 20px; border-top-right-radius: 20px;
-      background: rgba(15,20,32,0.92); backdrop-filter: blur(18px);
+      background: rgba(15,20,32,0.96); backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px); box-shadow: 0 -16px 40px -12px rgba(0,0,0,0.6);
       transform: translateY(102%); transition: transform .36s cubic-bezier(0.16,1,0.3,1);
       padding-bottom: env(safe-area-inset-bottom);
+      overflow-y: auto;
     }
     .section.open { transform: translateY(0); }
     .grab { display: block; width: 38px; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.2); margin: 9px auto 2px; }
@@ -303,7 +347,7 @@
     .tabs { padding-top: 6px; }
   }
   @media (max-width: 400px) {
-    .headline .v { font-size: 27px; }
+    .headline .v { font-size: 22px; }
     .controls { grid-template-columns: repeat(4, 1fr); }
   }
 
@@ -591,7 +635,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
       </div>
       <div class="idmeta">
-        <div class="name" id="devName">My Phone</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="name" id="devName">My Phone</div>
+          <select id="deviceSelector" style="display:none;max-width:140px;font-size:11px;background:var(--surface-3);color:var(--txt);border:1px solid var(--border-strong);border-radius:6px;padding:2px 4px;cursor:pointer;" onchange="onDeviceSelected(this.value)"></select>
+        </div>
         <div class="sub" id="devId">—</div>
       </div>
       <div class="pill" id="statusBadge"><span class="pdot"></span><span id="statusText">—</span></div>
@@ -905,6 +952,21 @@ function closeEmergencyBanner() {
   if (eb) eb.style.display = "none";
 }
 
+let cachedDevices = [];
+let lastServerNow = 0;
+let lastOfflineTimeout = 180;
+
+function onDeviceSelected(devId) {
+  const d = cachedDevices.find(x => x.id === devId);
+  if (d) {
+    currentDevice = d;
+    updateHUD(d, lastServerNow || (Date.now()/1000), lastOfflineTimeout);
+    updateMap(d);
+    renderSignals(d);
+    loadStats();
+  }
+}
+
 /* ---------- Live state ---------- */
 async function refreshState() {
   try {
@@ -916,9 +978,42 @@ async function refreshState() {
     if (!res.ok) return;
     const data = await res.json();
     if (!data.devices || !data.devices.length) return;
-    const sortedDevices = [...data.devices].sort((a, b) => (b.last_seen || 0) - (a.last_seen || 0));
-    const dev = (currentDevice && data.devices.find(d => d.id === currentDevice.id)) || sortedDevices[0];
+    cachedDevices = data.devices || [];
+    lastServerNow = data.now;
+    lastOfflineTimeout = data.offline_timeout || 180;
+
+    const sortedDevices = [...cachedDevices].sort((a, b) => {
+      const aTime = Math.max(a.last_seen || 0, a.last_ping?.ts || 0, a.last_fix?.ts || 0);
+      const bTime = Math.max(b.last_seen || 0, b.last_ping?.ts || 0, b.last_fix?.ts || 0);
+      return bTime - aTime;
+    });
+
+    const mostRecentDev = sortedDevices[0];
+    let dev = currentDevice && cachedDevices.find(d => d.id === currentDevice.id);
+    const devLast = dev ? Math.max(dev.last_seen || 0, dev.last_ping?.ts || 0, dev.last_fix?.ts || 0) : 0;
+    const mostRecentLast = mostRecentDev ? Math.max(mostRecentDev.last_seen || 0, mostRecentDev.last_ping?.ts || 0, mostRecentDev.last_fix?.ts || 0) : 0;
+
+    // Auto-select the active / recent device if current device is missing or stale
+    if (!dev || ((data.now - devLast) >= (data.offline_timeout || 180) && (data.now - mostRecentLast) < (data.offline_timeout || 180))) {
+      dev = mostRecentDev;
+    }
     currentDevice = dev;
+
+    // Render device selector if multiple devices exist
+    const selectorEl = document.getElementById("deviceSelector");
+    if (selectorEl) {
+      if (cachedDevices.length > 1) {
+        selectorEl.style.display = "inline-block";
+        selectorEl.innerHTML = cachedDevices.map(d => {
+          const isDevOnline = (data.now - Math.max(d.last_seen || 0, d.last_ping?.ts || 0, d.last_fix?.ts || 0)) < (data.offline_timeout || 180);
+          const icon = isDevOnline ? "🟢" : "⚪";
+          return `<option value="${d.id}" ${d.id === dev.id ? "selected" : ""}>${icon} ${d.name || d.id}</option>`;
+        }).join("");
+      } else {
+        selectorEl.style.display = "none";
+      }
+    }
+
     latestFrames = data.frames || [];
     savedPlaces = data.places || [];
     updateHUD(dev, data.now, data.offline_timeout);
@@ -952,7 +1047,8 @@ function updateHUD(d, now, timeout) {
   document.getElementById("devId").textContent = d.id || "—";
   const lp = d.last_ping || {};
   const fx = d.last_fix || lp;
-  const online = (now - (d.last_seen || 0)) < (timeout || 90);
+  const lastTs = Math.max(d.last_seen || 0, lp.ts || 0, fx.ts || 0);
+  const online = (now - lastTs) < (timeout || 180);
   document.getElementById("statusBadge").className = online ? "pill" : "pill off";
   document.getElementById("statusText").textContent = online ? "Online" : "Offline";
   if (fx && fx.lat != null) {
@@ -966,15 +1062,17 @@ function updateHUD(d, now, timeout) {
   const batVal = (lp.battery != null && lp.battery >= 0) ? `${Math.round(lp.battery)}%` : "—";
   document.getElementById("valBat").textContent = isCharging ? `⚡ ${batVal}` : batVal;
 
-  // Screen status
+  // Screen & Lock status
   const screenEl = document.getElementById("valScreen");
   if (screenEl) {
-    if (ex.screen_locked === true) {
-      screenEl.innerHTML = ex.screen_on === false ? '<span style="color:#f59e0b">🔒 Locked (Off)</span>' : '<span style="color:#f59e0b">🔒 Locked</span>';
-    } else if (ex.screen_locked === false) {
-      screenEl.innerHTML = ex.screen_on === false ? '<span style="color:var(--muted)">🔓 Screen Off</span>' : '<span style="color:#10b981">🔓 Unlocked</span>';
+    if (ex.screen_on === false) {
+      screenEl.innerHTML = '<span style="color:var(--muted)">🔒 Screen Off</span>';
+    } else if (ex.screen_locked === true) {
+      screenEl.innerHTML = '<span style="color:#f59e0b">🔒 Locked</span>';
+    } else if (ex.screen_locked === false || ex.screen_on === true) {
+      screenEl.innerHTML = '<span style="color:#10b981">🔓 Unlocked</span>';
     } else {
-      screenEl.textContent = online ? "Unlocked" : "—";
+      screenEl.textContent = online ? "Active" : "—";
     }
   }
 
@@ -995,7 +1093,7 @@ function updateHUD(d, now, timeout) {
     stateEl.textContent = stateTxt;
   }
 
-  document.getElementById("valAgo").textContent = formatAgo(d.last_seen, now);
+  document.getElementById("valAgo").textContent = formatAgo(lastTs, now);
 }
 
 function updateMap(d) {
@@ -1385,10 +1483,12 @@ function renderStats(s) {
 
   const ex = (currentDevice && currentDevice.last_ping && currentDevice.last_ping.extra) || (currentDevice && currentDevice.last_fix && currentDevice.last_fix.extra) || {};
   let screenTxt = "—";
-  if (ex.screen_locked === true) {
-    screenTxt = ex.screen_on === false ? "Locked (Screen Off)" : "Locked (Screen On)";
-  } else if (ex.screen_locked === false) {
-    screenTxt = ex.screen_on === false ? "Unlocked (Screen Off)" : "Unlocked (Active)";
+  if (ex.screen_on === false) {
+    screenTxt = "Screen Off";
+  } else if (ex.screen_locked === true) {
+    screenTxt = "Locked (Screen On)";
+  } else if (ex.screen_locked === false || ex.screen_on === true) {
+    screenTxt = "Unlocked (Active)";
   }
   let powerTxt = ex.charging ? `Charging (${(ex.plug_type || "AC").toUpperCase()})` : "On Battery";
   if (ex.network) powerTxt += ` · ${ex.network === "wifi" ? "Wi-Fi" : (ex.network === "cellular" ? "Cellular" : ex.network)}`;

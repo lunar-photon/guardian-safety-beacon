@@ -164,6 +164,13 @@ public class GuardianService extends Service {
         }
     };
 
+    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            new Thread(() -> tick()).start();
+        }
+    };
+
     private final ScanCallback bleScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
@@ -359,6 +366,14 @@ public class GuardianService extends Service {
 
         try {
             registerReceiver(wifiReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        } catch (Exception ignored) {}
+
+        try {
+            IntentFilter screenFilter = new IntentFilter();
+            screenFilter.addAction(Intent.ACTION_SCREEN_ON);
+            screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
+            screenFilter.addAction(Intent.ACTION_USER_PRESENT);
+            registerReceiver(screenReceiver, screenFilter);
         } catch (Exception ignored) {}
 
         setupLocationUpdates(intervalSec);
@@ -833,19 +848,26 @@ public class GuardianService extends Service {
         JSONObject status = new JSONObject();
         try {
             // Screen & Keyguard lock status
-            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-            boolean isLocked = false;
-            if (km != null) {
-                isLocked = km.isKeyguardLocked();
-            }
-            status.put("screen_locked", isLocked);
-
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             boolean isInteractive = true;
             if (pm != null) {
                 isInteractive = pm.isInteractive();
             }
             status.put("screen_on", isInteractive);
+
+            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            boolean isLocked = false;
+            if (km != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                    isLocked = km.isKeyguardLocked() || km.isDeviceLocked();
+                } else {
+                    isLocked = km.isKeyguardLocked();
+                }
+            }
+            if (!isInteractive) {
+                isLocked = true;
+            }
+            status.put("screen_locked", isLocked);
 
             // Battery charging state
             Intent bIntent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -903,6 +925,9 @@ public class GuardianService extends Service {
         } catch (Exception ignored) {}
         try {
             unregisterReceiver(wifiReceiver);
+        } catch (Exception ignored) {}
+        try {
+            unregisterReceiver(screenReceiver);
         } catch (Exception ignored) {}
 
         if (wakeLock != null && wakeLock.isHeld()) {
