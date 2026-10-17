@@ -24,6 +24,12 @@ if [ -z "$PORT" ]; then
 fi
 
 mkdir -p "$DATA_DIR"
+if [ ! -w "$DATA_DIR" ] || ([ -f "$CONFIG_FILE" ] && [ ! -w "$CONFIG_FILE" ]); then
+    if command -v sudo >/dev/null 2>&1; then
+        sudo chown -R "$(id -u):$(id -g)" "$DATA_DIR" 2>/dev/null || true
+    fi
+    chmod -R u+w "$DATA_DIR" 2>/dev/null || true
+fi
 
 echo "=================================================="
 echo "  Guardian & Stratus: Master Setup & Installer    "
@@ -93,6 +99,7 @@ case "$USER_CHOICE" in
 esac
 
 # Save configuration
+rm -f "$CONFIG_FILE" 2>/dev/null || true
 cat > "$CONFIG_FILE" << EOF
 METHOD=$SELECTED_METHOD
 SERVEO_SUBDOMAIN=$SERVEO_SUBDOMAIN
