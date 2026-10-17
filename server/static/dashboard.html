@@ -916,7 +916,8 @@ async function refreshState() {
     if (!res.ok) return;
     const data = await res.json();
     if (!data.devices || !data.devices.length) return;
-    const dev = data.devices.find(d => d.id === "dev-6b80ca5a") || data.devices[0];
+    const sortedDevices = [...data.devices].sort((a, b) => (b.last_seen || 0) - (a.last_seen || 0));
+    const dev = (currentDevice && data.devices.find(d => d.id === currentDevice.id)) || sortedDevices[0];
     currentDevice = dev;
     latestFrames = data.frames || [];
     savedPlaces = data.places || [];
@@ -947,7 +948,7 @@ async function refreshState() {
 }
 
 function updateHUD(d, now, timeout) {
-  document.getElementById("devName").textContent = "My Phone";
+  document.getElementById("devName").textContent = d.name || "My Phone";
   document.getElementById("devId").textContent = d.id || "—";
   const lp = d.last_ping || {};
   const fx = d.last_fix || lp;
